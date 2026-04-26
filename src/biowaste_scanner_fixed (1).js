@@ -119,8 +119,8 @@ const BioScanner = (() => {
         </div>
 
         <div class="cam-controls" id="bws-controls">
-          <button class="cam-btn cam-btn-upload"   onclick="BioScanner.__clickUpload()">🖼 Upload photo</button>
-          <button class="cam-btn cam-btn-capture"  id="bws-btn-main" onclick="BioScanner.__startCamera()">📷 Start camera</button>
+          <button class="cam-btn btn-secondary" style="border-radius:10px;" onclick="BioScanner.__clickUpload()">🖼 Upload photo</button>
+          <button class="cam-btn btn-primary" id="bws-btn-main" style="border-radius:10px; min-width:180px;" onclick="BioScanner.__startCamera()">📷 Start camera</button>
         </div>
 
         <div id="bws-result"></div>
@@ -212,7 +212,9 @@ const BioScanner = (() => {
     if (controls && !document.getElementById('bws-analyse-btn')) {
       const btn = document.createElement('button');
       btn.id = 'bws-analyse-btn';
-      btn.className = 'cam-btn cam-btn-capture';
+      btn.className = 'cam-btn btn-primary';
+      btn.style.borderRadius = '10px';
+      btn.style.minWidth = '180px';
       btn.textContent = '🔍 Analyse waste';
       btn.onclick = () => __analyse();
       controls.appendChild(btn);
@@ -276,7 +278,7 @@ const BioScanner = (() => {
     const stepInt = setInterval(() => {
       const el = document.getElementById('bws-step-txt');
       if (el && si < steps.length) el.textContent = steps[si++];
-    }, 1500);
+    }, 1200);
 
     setTimeout(async () => {
       clearInterval(stepInt);
@@ -290,15 +292,17 @@ const BioScanner = (() => {
         console.error('[BioScanner] Error:', err);
         resultArea.innerHTML = `<div class="result-panel"><div style="padding:20px;text-align:center;">⚠ Error rendering results.</div></div>`;
       }
-    }, (steps.length + 1) * 1500);
+    }, (steps.length + 1) * 1200);
   }
 
   function __simulateAnalysis() {
     const categories = {
-      Organic:   { emoji: '🍃', items: ['Banana Peel', 'Egg Shells', 'Coffee Grounds', 'Leftover Rice', 'Vegetable Scraps'], biogas: true },
-      Plastic:   { emoji: '🥤', items: ['Water Bottle', 'Snack Wrapper', 'Milk Pouch', 'Plastic Cup'], biogas: false },
-      Glass:     { emoji: '🍾', items: ['Broken Bottle', 'Jam Jar'], biogas: false },
-      Metal:     { emoji: '🥫', items: ['Soda Can', 'Aluminium Foil'], biogas: false }
+      Organic:   { emoji: '🍃', items: ['Banana Peel', 'Egg Shells', 'Coffee Grounds', 'Leftover Rice', 'Vegetable Scraps', 'Fruit Rind', 'Stale Bread'], biogas: true },
+      Plastic:   { emoji: '🥤', items: ['Water Bottle', 'Snack Wrapper', 'Milk Pouch', 'Plastic Cup', 'Polybag', 'Yogurt Tub'], biogas: false },
+      Glass:     { emoji: '🍾', items: ['Broken Bottle', 'Jam Jar', 'Medicine Vial'], biogas: false },
+      Metal:     { emoji: '🥫', items: ['Soda Can', 'Aluminium Foil', 'Tin Lid'], biogas: false },
+      Paper:     { emoji: '📦', items: ['Cardboard Box', 'Newspaper', 'Tissues'], biogas: false },
+      Hazardous: { emoji: '🔋', items: ['Used Battery', 'Expired Medicine', 'Bleach Bottle'], biogas: false }
     };
 
     const catKeys = Object.keys(categories);
@@ -327,7 +331,7 @@ const BioScanner = (() => {
     const overallGrade = 
       segregationScore >= 90 ? 'Excellent' :
       segregationScore >= 75 ? 'Good' :
-      segregationScore >= 50 ? 'Fair' : 'Poor';
+      segregationScore >= 55 ? 'Fair' : 'Poor';
 
     const biogasSuitability = 
       segregationScore >= 85 ? 'Ideal' :
@@ -336,17 +340,17 @@ const BioScanner = (() => {
 
     const recommendations = [];
     if (containsContaminants) {
-      recommendations.push({ icon: '🧤', text: `Remove the ${contaminantsFound[0]} before disposal.` });
-      recommendations.push({ icon: '♻️', text: 'Separate non-organic waste into the dry bin.' });
+      recommendations.push({ icon: '🧤', text: `Please remove the ${contaminantsFound[0]} before disposal.` });
+      recommendations.push({ icon: '♻️', text: 'Separate non-organic items into the dry waste bin.' });
     } else {
-      recommendations.push({ icon: '✨', text: 'Perfectly segregated organic waste.' });
-      recommendations.push({ icon: '🔒', text: 'Keep the bin closed to prevent odour.' });
+      recommendations.push({ icon: '✨', text: 'Perfectly segregated organic waste batch.' });
+      recommendations.push({ icon: '🔒', text: 'Keep the bin lid tightly closed to avoid odour.' });
     }
 
     return {
       segregationScore,
       overallGrade,
-      gradeSummary: containsContaminants ? `Found ${contaminantsFound.length} items of contamination.` : "High-quality organic batch ready for processing.",
+      gradeSummary: containsContaminants ? `Detected ${contaminantsFound.length} contaminants. Batch needs sorting.` : "High-quality organic batch ready for processing.",
       detectedItems,
       contaminantsFound,
       recommendations,
@@ -373,6 +377,7 @@ const BioScanner = (() => {
     };
     const storageKey = `scan:${__opts.userId || 'anon'}:${record.id}`;
     await __storage.set(storageKey, record);
+    if (__opts.onScanSaved) __opts.onScanSaved(record);
     return record;
   }
 
@@ -393,17 +398,17 @@ const BioScanner = (() => {
     const dashOffset = C * (1 - score / 100);
 
     const itemsHTML = (r.detectedItems || []).map(item => `
-      <div class="detected-item" style="background:${item.isContaminant ? 'rgba(239, 68, 68, 0.08)' : 'rgba(16, 185, 129, 0.05)'};">
+      <div class="detected-item" style="background:${item.isContaminant ? 'rgba(239, 68, 68, 0.05)' : 'rgba(16, 185, 129, 0.03)'};">
         <div class="detected-item-name">
           <span>${item.emoji || '•'}</span>
-          <span style="color:${item.isContaminant ? '#DC2626' : '#1A1915'};">${item.name}</span>
-          ${item.isContaminant ? '<span style="font-size:9px; background:#FEE2E2; color:#DC2626; padding:1px 5px; border-radius:10px; margin-left:5px;">CONTAMINANT</span>' : ''}
+          <span style="color:${item.isContaminant ? '#DC2626' : 'var(--text)'};">${item.name}</span>
+          ${item.isContaminant ? '<span style="font-size:9px; background:#FEE2E2; color:#DC2626; padding:1px 5px; border-radius:10px; margin-left:5px; font-weight:700;">CONTAMINANT</span>' : ''}
         </div>
-        <span class="badge ${item.isContaminant ? 'badge-coral' : 'badge-teal'}" style="font-size:10px;">${item.category}</span>
+        <span class="badge ${item.isContaminant ? 'badge-amber' : 'badge-green'}" style="font-size:10px; margin-top:4px;">${item.category}</span>
       </div>`).join('');
 
     const recsHTML = (r.recommendations || []).map(rec =>
-      `<div class="rec-row" style="display:flex; gap:10px; margin-bottom:8px; font-size:13px;">
+      `<div class="rec-row">
         <span class="rec-icon">${rec.icon || '•'}</span>
         <span>${rec.text}</span>
       </div>`).join('');
@@ -411,9 +416,9 @@ const BioScanner = (() => {
     const suitBadge = { Ideal: 'badge-teal', Acceptable: 'badge-green', Marginal: 'badge-amber', Reject: 'badge-coral' }[r.biogasSuitability] || 'badge-grey';
 
     resultArea.innerHTML = `
-      <div class="result-panel" style="margin-top:24px; animation: slideUp 0.4s ease-out;">
+      <div class="result-panel" style="margin-top:24px; animation: fadeIn 0.4s ease-out;">
         <div class="result-header" style="background:${headerBg}; border-radius:20px 20px 0 0; padding: 24px;">
-          <div class="score-ring-wrap" style="display:flex; align-items:center; gap:20px;">
+          <div class="score-ring-wrap" style="display:flex; align-items:center; gap:24px;">
             <div class="score-ring" style="position:relative; width:80px; height:80px;">
               <svg viewBox="0 0 80 80" width="80" height="80">
                 <circle cx="40" cy="40" r="34" fill="none" stroke="rgba(255,255,255,0.2)" stroke-width="6"/>
@@ -421,35 +426,43 @@ const BioScanner = (() => {
                   stroke-dasharray="${C}" stroke-dashoffset="${dashOffset}" stroke-linecap="round"
                   style="transition: stroke-dashoffset 1s ease-out;"/>
               </svg>
-              <div class="score-ring-num" style="position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); color:#fff; font-weight:800; font-size:20px;">${score}</div>
+              <div class="score-ring-num" style="position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); color:#fff; font-weight:800; font-size:22px;">${score}</div>
             </div>
             <div>
-              <div class="score-grade-label" style="color:#fff; font-weight:800; font-size:22px; line-height:1;">${r.overallGrade}</div>
+              <div class="score-grade-label" style="color:#fff; font-weight:800; font-size:24px; line-height:1; font-family:'Space Grotesk';">${r.overallGrade}</div>
               <div style="margin-top:10px; display:flex; gap:8px;">
                 <span class="badge ${suitBadge}" style="font-size:11px;">⚗ ${r.biogasSuitability}</span>
-                ${r.actionRequired ? '<span class="badge badge-red" style="font-size:11px;">⚠ Action Required</span>' : '<span class="badge badge-teal" style="font-size:11px;">✓ Ready</span>'}
+                ${r.actionRequired ? '<span class="badge badge-red" style="font-size:11px;">⚠ Action Required</span>' : '<span class="badge badge-green" style="font-size:11px;">✓ Ready</span>'}
               </div>
             </div>
           </div>
         </div>
-        <div class="result-body" style="padding: 24px; background: #fff; border-radius: 0 0 20px 20px;">
-          <div style="font-size:15px; color:#4B5563; margin-bottom:20px; font-style:italic; line-height:1.4;">"${r.gradeSummary}"</div>
+        <div class="result-body" style="padding: 24px; background: var(--surface); border-radius: 0 0 20px 20px;">
+          <div style="font-size:15px; color:var(--text-muted); margin-bottom:20px; font-style:italic; line-height:1.5;">"${r.gradeSummary}"</div>
           
           <div style="margin-bottom:24px;">
-            <div style="font-size:12px; font-weight:700; color:#9CA3AF; text-transform:uppercase; margin-bottom:12px; letter-spacing:0.5px;">Detected Items</div>
-            <div class="detected-grid" style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">${itemsHTML}</div>
+            <div style="font-size:12px; font-weight:700; color:var(--text-muted); text-transform:uppercase; margin-bottom:12px; letter-spacing:1px;">Detected Items</div>
+            <div class="detected-grid">${itemsHTML}</div>
           </div>
 
-          <div style="background:#F9FAFB; padding:20px; border-radius:15px;">
-            <div style="font-size:12px; font-weight:700; color:#9CA3AF; text-transform:uppercase; margin-bottom:12px; letter-spacing:0.5px;">Recommendations</div>
+          <div style="background:var(--surface-hover); padding:20px; border-radius:16px; border: 1px solid var(--border);">
+            <div style="font-size:12px; font-weight:700; color:var(--text-muted); text-transform:uppercase; margin-bottom:12px; letter-spacing:1px;">Recommendations</div>
             ${recsHTML}
           </div>
 
           <div style="display:flex; gap:12px; margin-top:24px;">
-            <button class="btn btn-secondary btn-full" onclick="BioScanner.__retake()" style="flex:1;">🔄 New Scan</button>
+            <button class="btn btn-secondary" onclick="BioScanner.__retake()" style="flex:1;">🔄 New Scan</button>
+            <button class="btn btn-primary" onclick="BioScanner.__applyResult(${score}, ${r.estimatedOrganicPercent})" style="flex:1.5;">📥 Apply Data</button>
           </div>
         </div>
       </div>`;
+  }
+
+  // ── HELPER: Apply Scan Data to Form ──────────────────────────────────────
+  function __applyResult(score, organicPercent) {
+    if (typeof __opts.onApply === 'function') {
+      __opts.onApply(score, organicPercent);
+    }
   }
 
   function open(options) {
@@ -466,7 +479,8 @@ const BioScanner = (() => {
     __startCamera,
     __captureFrame,
     __retake,
-    __analyse
+    __analyse,
+    __applyResult
   };
 
 })();

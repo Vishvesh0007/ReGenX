@@ -324,51 +324,76 @@ const BioScanner = (() => {
         const canvas = document.getElementById('bws-canvas');
         if (!__tfModel) {
             __toast('⌛ AI Model still loading...');
-            return __smartSimulation(); // Fallback to color math if model isn't ready
+            return __smartSimulation(); 
         }
 
         const predictions = await __tfModel.classify(canvas);
         console.log('[BioScanner] AI Predictions:', predictions);
 
         // Map AI predictions to our Waste Categories
-        const organicKeywords = ['fruit', 'banana', 'orange', 'apple', 'veg', 'leaf', 'plant', 'food', 'bread', 'meat', 'egg'];
-        const inorganicKeywords = ['plastic', 'bottle', 'cup', 'wrapper', 'can', 'metal', 'glass', 'paper', 'cardboard', 'bag', 'phone', 'mouse', 'keyboard'];
+        const organicKeywords = ['fruit', 'banana', 'orange', 'apple', 'veg', 'leaf', 'plant', 'food', 'bread', 'meat', 'egg', 'produce'];
+        
+        // EXPANDED: Electronic & Industrial Waste Keywords
+        const inorganicKeywords = [
+            'plastic', 'bottle', 'cup', 'wrapper', 'can', 'metal', 'glass', 'paper', 'cardboard', 'bag', 
+            'phone', 'mouse', 'keyboard', 'cable', 'wire', 'circuit', 'board', 'component', 'hardware', 
+            'electronic', 'modem', 'switch', 'router', 'battery', 'tool', 'machine', 'gear', 'tv', 'monitor'
+        ];
 
         let detectedItems = [];
         let organicConfidence = 0;
         let inorganicConfidence = 0;
+        let isEWaste = false;
 
         predictions.forEach(p => {
             const name = p.className.toLowerCase();
             const isOrg = organicKeywords.some(k => name.includes(k));
             const isInorg = inorganicKeywords.some(k => name.includes(k));
+            
+            // Check for E-Waste specifically
+            if (['circuit', 'board', 'electronic', 'component'].some(k => name.includes(k))) isEWaste = true;
 
             if (isOrg) {
                 detectedItems.push({ name: p.className.split(',')[0], category: 'Organic', isContaminant: false, emoji: '🍃' });
                 organicConfidence += p.probability;
             } else if (isInorg) {
-                detectedItems.push({ name: p.className.split(',')[0], category: 'Inorganic', isContaminant: true, emoji: '📦' });
+                const isToxic = ['circuit', 'battery', 'hardware'].some(k => name.includes(k));
+                detectedItems.push({ 
+                    name: p.className.split(',')[0], 
+                    category: isToxic ? 'Hazardous' : 'Inorganic', 
+                    isContaminant: true, 
+                    emoji: isToxic ? '☢️' : '📦' 
+                });
                 inorganicConfidence += p.probability;
             }
         });
 
         // Final Logic
         let score = 95;
-        if (inorganicConfidence > 0.1) score = 100 - (inorganicConfidence * 150);
-        if (organicConfidence < 0.1 && inorganicConfidence < 0.1) score = 40; // Unidentified/Trash
+        
+        // E-Waste is a total fail for Biogas
+        if (isEWaste) {
+            score = 15;
+        } else if (inorganicConfidence > 0.1) {
+            score = 100 - (inorganicConfidence * 160);
+        }
+        
+        if (!isEWaste && organicConfidence < 0.05 && inorganicConfidence < 0.05) {
+            score = 35; // Unidentified debris
+        }
 
         score = Math.max(5, Math.min(100, Math.round(score)));
 
         return {
             segregationScore: score,
-            overallGrade: score > 90 ? 'Excellent' : score > 75 ? 'Good' : score > 55 ? 'Fair' : 'Poor',
-            gradeSummary: `AI identified "${predictions[0].className.split(',')[0]}" with ${Math.round(predictions[0].probability * 100)}% confidence.`,
-            detectedItems: detectedItems.length ? detectedItems : [{ name: predictions[0].className.split(',')[0], category: 'Misc', isContaminant: true, emoji: '❓' }],
-            recommendations: score < 80 ? [{ icon: '🧤', text: 'AI detected non-organic items. Please remove them.' }] : [{ icon: '✨', text: 'Clean batch confirmed by AI.' }],
-            biogasSuitability: score > 80 ? 'Ideal' : 'Reject',
-            estimatedOrganicPercent: Math.round(organicConfidence * 100),
-            actionRequired: score < 75,
-            stats: { g: Math.round(organicConfidence*100), r: 0, b: Math.round(inorganicConfidence*100), v: 0 }
+            overallGrade: score > 90 ? 'Excellent' : score > 75 ? 'Good' : score > 40 ? 'Fair' : 'Poor',
+            gradeSummary: isEWaste ? "CRITICAL: Electronic waste detected. Toxic to biogas systems." : `AI identified "${predictions[0].className.split(',')[0]}" with ${Math.round(predictions[0].probability * 100)}% confidence.`,
+            detectedItems: detectedItems.length ? detectedItems : [{ name: predictions[0].className.split(',')[0], category: 'Unknown', isContaminant: true, emoji: '❓' }],
+            recommendations: score < 70 ? [{ icon: '☢️', text: 'Hazardous/Inorganic waste detected. REJECT BATCH.' }] : [{ icon: '✨', text: 'Clean batch confirmed by AI.' }],
+            biogasSuitability: score > 75 ? 'Ideal' : 'Reject',
+            estimatedOrganicPercent: isEWaste ? 2 : Math.round(organicConfidence * 100),
+            actionRequired: score < 80,
+            stats: { g: Math.round(organicConfidence*100), r: isEWaste ? 100 : 0, b: Math.round(inorganicConfidence*100), v: isEWaste ? 99 : 0 }
         };
     }
 

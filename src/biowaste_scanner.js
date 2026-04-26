@@ -413,8 +413,12 @@ const BioScanner = (() => {
         __opts = options || {}; await __init(); __render();
     }
 
+    function stop() {
+        __stopCamera();
+    }
+
     return {
-        open, handleFileUpload, __back, __setMode, __clickUpload, __startCamera, __captureFrame, __retake, __analyse, __applyResult, __toggleSettings, __saveApiKey, __updateProvider
+        open, stop, handleFileUpload, __back, __setMode, __clickUpload, __startCamera, __captureFrame, __retake, __analyse, __applyResult, __toggleSettings, __saveApiKey, __updateProvider
     };
 
 })();

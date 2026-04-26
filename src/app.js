@@ -735,7 +735,10 @@ async function renderProvider(mc, fullRender) {
 
 window.openScanner = function() {
   const mb = document.getElementById('modal-box');
-  if(mb) mb.classList.add('modal-large');
+  if(mb) {
+    mb.classList.add('modal-large');
+    mb.innerHTML = ''; // Clear previous content
+  }
   
   BioScanner.open({
     containerId: 'modal-box',
@@ -743,13 +746,14 @@ window.openScanner = function() {
     userName: SESSION.name,
     userOrg: SESSION.org,
     userId: SESSION.id,
-    onBack: () => closeModal(),
+    onBack: () => closeScanner(),
     onApply: (score, organicPercent) => {
       showView('v-pv-req');
       setTimeout(() => {
         const rKg = document.getElementById('req-kg'); if(rKg) rKg.value = Math.floor(Math.random() * 150 + 50); 
         const rType = document.getElementById('req-type'); if(rType) rType.value = organicPercent > 70 ? "Food Waste" : "Dry Waste";
         showToast(`✓ Scanner Data Applied: ${score}% Segregation Score`);
+        closeScanner();
       }, 200);
     },
     onScanSaved: (record) => {
@@ -757,6 +761,16 @@ window.openScanner = function() {
     }
   });
   document.getElementById('modal').classList.add('open');
+}
+
+window.closeModal = function() {
+  const m = document.getElementById('modal');
+  if(m) m.classList.remove('open');
+  const mb = document.getElementById('modal-box');
+  if(mb) {
+    mb.classList.remove('modal-large');
+    mb.innerHTML = '';
+  }
 }
 
 window.closeScanner = function() {

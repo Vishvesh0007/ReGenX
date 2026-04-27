@@ -86,7 +86,7 @@
 ### Run Locally
 
 ```bash
-git clone https://github.com//ReGenX.git
+git clone https://github.com/Shruti070107/ReGenX.git
 cd ReGenX
 npm install
 npm run serve

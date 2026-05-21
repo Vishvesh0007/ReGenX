@@ -424,7 +424,13 @@ function executeLogin(acc) {
 
 window.doLogout = function() {
   clearInterval(autoRefreshTimer);
-  SESSION = { role:null, name:'', org:'', uid:'', lat:null, lng:null };
+  clearInterval(tickerTimer);
+  clearInterval(gwTimer);
+  stopIoTSim();
+  if (pvChartInstance) { pvChartInstance.destroy(); pvChartInstance = null; }
+  if (plChartInstance) { plChartInstance.destroy(); plChartInstance = null; }
+  if (rMap) { rMap.remove(); rMap = null; }
+  SESSION = { role: null, name: '', org: '', uid: '', lat: null, lng: null };
   document.getElementById('app-shell').classList.remove('active');
   document.getElementById('login-screen').style.display = 'flex';
   switchAuthTab('login');

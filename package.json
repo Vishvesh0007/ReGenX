@@ -3,13 +3,7 @@
   "private": true,
   "version": "1.0.0",
   "type": "module",
-  "dependencies": {
-    "express": "^4.22.2",
-    "socket.io": "^4.8.3"
-  },
   "scripts": {
-    "serve": "node ./scripts/realtime-server.mjs",
-    "deploy:appwrite": "node ./scripts/appwrite-deploy.mjs"
     "serve": "python -m http.server 4173",
     "deploy:appwrite": "node ./scripts/appwrite-deploy.mjs",
     "build": "echo \"No build step required for static frontend\"",
@@ -20,6 +14,8 @@
     "test": "npm run test:pwa && npm run test:modules && npm run test:health"
   },
   "dependencies": {
+    "express": "^4.22.2",
+    "socket.io": "^4.8.3",
     "dotenv": "^17.4.2"
   }
 }

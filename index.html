@@ -3,7 +3,7 @@
 
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>ReGenX — Premium BioWaste Platform</title>
 
   <!-- PWA & Mobile Optimization -->
@@ -36,10 +36,15 @@
   <!-- GSAP for Micro-animations -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
 
+  <!-- Socket.IO client for realtime dashboard sync -->
+  <script src="/socket.io/socket.io.js"></script>
+
   <!-- Custom Assets -->
-  <link rel="stylesheet" href="./src/styles.css?v=10" />
-  <script src="./src/scanner.js?v=10"></script>
-  <script type="module" src="./src/app.js?v=10"></script>
+  <link rel="stylesheet" href="./src/styles.css?v=11" />
+  <script src="./src/scanner.js?v=11"></script>
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
+  <script src="https://cdn.jsdelivr.net/npm/appwrite@14.0.1"></script>
+  <script type="module" src="./src/app.js?v=11"></script>
 
 </head>
 
@@ -117,9 +122,58 @@
           <select class="form-input" id="login-account">
             <option value="">-- No accounts registered yet --</option>
           </select>
-        </div>
-        <button class="btn btn-primary btn-full" onclick="doLogin()" style="margin-top:10px;">Enter Dashboard →</button>
-      </div>
+       </div>
+
+<button class="btn btn-primary btn-full" onclick="doLogin()" style="margin-top:10px;">
+    Enter Dashboard →
+</button>
+<div
+
+  id="google-login-btn"
+  style="
+    /* margin-top: 14px; */
+    width: 100%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    padding: 12px;
+    transition: all 0.3s ease;
+  "
+></div>
+
+<div style="
+display:flex;
+justify-content:center;
+align-items:center;
+margin-top:18px;
+">
+    <button onclick="resetAppData()" style="
+        background: rgba(255,255,255,0.08);
+        border: 1px solid rgba(255,255,255,0.12);
+        color: rgba(100,116,139,0.85);
+        font-size: 13px;
+        cursor: pointer;
+        padding: 8px 16px;
+        border-radius: 10px;
+        transition: all 0.25s ease;
+        font-family: 'Inter', sans-serif;
+        backdrop-filter: blur(6px);
+    "
+    onmouseover="
+        this.style.color='#ef4444';
+        this.style.borderColor='#ef4444';
+        this.style.transform='translateY(-1px)';
+    "
+    onmouseout="
+        this.style.color='rgba(100,116,139,0.85)';
+        this.style.borderColor='rgba(255,255,255,0.12)';
+        this.style.transform='translateY(0)';
+    ">
+        🗑 Reset All App Data
+    </button>
+</div>
+
+</div>
 
     </div>
 
@@ -131,17 +185,11 @@
     </div>
 
     <!-- RESET BUTTON -->
-    <div style="position:relative; z-index:1; text-align:center; margin-top:12px;">
-      <button onclick="resetAppData()" style="
-        background: none; border: none; color: rgba(100,116,139,0.6);
-        font-size: 12px; cursor: pointer; padding: 6px 12px;
-        border-radius: 8px; transition: all 0.2s; font-family: 'Inter', sans-serif;
-        text-decoration: underline; text-underline-offset: 2px;
-      " onmouseover="this.style.color='#ef4444'" onmouseout="this.style.color='rgba(100,116,139,0.6)'">
+   <div class="reset-wrapper">
+    <button onclick="resetAppData()" class="reset-btn">
         🗑 Reset All App Data
-      </button>
-    </div>
-
+    </button>
+</div>
   </div>
 
   <!-- ════════ APP SHELL ════════ -->
@@ -184,22 +232,24 @@
           </div>
         </div>
         <!-- Main Topbar Content -->
-        <div
-          style="display:flex; justify-content:space-between; align-items:center; padding: 12px 32px; width: 100%; position: relative;">
+        <div class="topbar-content">
           <div class="hamburger" onclick="toggleSidebar()">☰</div>
           <div class="topbar-title" id="tb-view-title">Dashboard</div>
           <div class="topbar-user">
             <div class="token-balance hidden" id="token-balance-container" title="ReGen Tokens">
-              🪙 <span id="token-balance">0</span> <span
+              🪙 <span id="token-balance">0</span> <span class="token-symbol"
                 style="font-size:12px; font-weight:600; color:var(--text-muted)">$RGX</span>
             </div>
-            <div style="text-align:right; margin-left: 16px; padding-left: 16px; border-left: 1px solid var(--border);">
+            <div class="topbar-details" style="text-align:right; margin-left: 16px; padding-left: 16px; border-left: 1px solid var(--border);">
               <div class="topbar-name" id="tb-name">—</div>
               <div class="topbar-role" id="tb-role">—</div>
             </div>
             <div class="topbar-avatar" id="tb-avatar" style="cursor:pointer;" onclick="openSettings()"
               title="Profile Settings"></div>
-            <button class="btn btn-ghost btn-sm" onclick="doLogout()">Logout</button>
+            <button class="btn btn-ghost btn-sm topbar-logout" onclick="doLogout()">
+              <span class="logout-text">Logout</span>
+              <span class="logout-icon" style="display:none;">🚪</span>
+            </button>
           </div>
         </div>
       </header>
@@ -216,6 +266,7 @@
   <div class="modal-overlay" id="modal" onclick="if(event.target === this) closeScanner()">
     <div class="modal-box glass-card" id="modal-box"></div>
   </div>
+
 
 </body>
 

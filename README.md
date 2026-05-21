@@ -84,7 +84,7 @@
 | Charts | Chart.js |
 | PWA | Service Worker, Web App Manifest |
 | Weather | Open-Meteo API |
-| Storage | LocalStorage (demo-ready, no backend needed) |
+| Storage | LocalStorage cache + Socket.IO realtime state sync |
 
 </div>
 
@@ -113,7 +113,9 @@ npm install
 # Start development server
 npm run serve
 ```
-Then open `http://localhost:8080` in your browser.
+Then open `http://localhost:4173` in your browser.
+
+The realtime server keeps Provider, Rider, and Plant dashboards synchronized across open tabs and devices.
 
 ### First-Time Setup
 1. Click **Register** and choose your role (Provider / Rider / Plant)

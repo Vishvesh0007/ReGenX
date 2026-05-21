@@ -6,6 +6,8 @@ import { TrustProtocol } from './trust.js';
 import { YieldOptimizer } from './yield-optimizer.js';
 import { RouteOptimizer } from './route-optimizer.js';
 import { AuditPortal } from './audit-portal.js';
+import { ReGenXRealtime } from './realtime-sync.js';
+import { CloudSync } from './cloud-sync.js';
 
 const STORAGE_KEY_PREFIX = "regenx-v3:";
 const TRUST_LEDGER_KEY = "trust-ledger";
@@ -31,7 +33,7 @@ if ('serviceWorker' in navigator) {
           window.showToast(event.data.message);
         }
         if (event.data?.type === 'NAVIGATE') {
-          window.showView && window.showView('v-r-dash');
+          window.showView && window.showView('v-rd-dash');
         }
       });
     })
@@ -81,7 +83,18 @@ const SHIFTS = ['Morning Shift (08:00 - 12:00)', 'Evening Shift (16:00 - 20:00)'
 // ── DB HELPER ──
 const DB = {
   get: (key) => { try { const r = window.localStorage.getItem(STORAGE_KEY_PREFIX + key); return r ? JSON.parse(r) : null; } catch { return null; } },
-  set: (key, val) => { try { window.localStorage.setItem(STORAGE_KEY_PREFIX + key, JSON.stringify(val)); return true; } catch { return false; } },
+  set: (key, val, options = {}) => { try {
+    window.localStorage.setItem(STORAGE_KEY_PREFIX + key, JSON.stringify(val));
+    if (!options.silent && ReGenXRealtime) {
+      ReGenXRealtime.syncStorageMutation({
+        updates: [{ key: STORAGE_KEY_PREFIX + key, value: val, action: 'set' }],
+        rooms: options.rooms,
+        eventType: options.eventType || 'KPI_UPDATED',
+        meta: options.meta || {}
+      });
+    }
+    return true;
+  } catch { return false; } },
   list: (prefix) => {
     try {
       const keys = [];
@@ -93,6 +106,25 @@ const DB = {
     } catch { return []; }
   }
 };
+
+function getRealtimeRoomsForRole(role) {
+  const rooms = ['network_room'];
+  if (role === 'provider') rooms.push('providers_room');
+  if (role === 'rider') rooms.push('riders_room');
+  if (role === 'plant') rooms.push('plants_room');
+  rooms.push('admin_room');
+  return Array.from(new Set(rooms));
+}
+
+function publishOperationalEvent(type, updates = [], meta = {}, rooms = null) {
+  if (!ReGenXRealtime) return;
+  ReGenXRealtime.emitOperationalEvent({
+    type,
+    rooms: rooms || getRealtimeRoomsForRole(SESSION.role),
+    updates,
+    meta
+  });
+}
 
 /**
  * Load trust ledger events from localStorage.
@@ -113,7 +145,10 @@ function loadTrustLedger() {
  * @param {Array<Object>} events - Ledger events.
  */
 function saveTrustLedger(events) {
-  try { window.localStorage.setItem(TRUST_LEDGER_KEY, JSON.stringify(events)); } catch { /* ignore */ }
+  try {
+    window.localStorage.setItem(TRUST_LEDGER_KEY, JSON.stringify(events));
+    ReGenXRealtime?.syncRawKey(TRUST_LEDGER_KEY, events, { eventType: 'KPI_UPDATED', rooms: ['network_room', 'providers_room', 'riders_room', 'plants_room'] });
+  } catch { /* ignore */ }
 }
 
 /**
@@ -228,6 +263,16 @@ function getTrustIndex() {
  */
 function renderTrustIndexCard() {
   const { score, label, anomalyRate, orderCount } = getTrustIndex();
+  if (!orderCount) {
+    return renderEmptyStateCard({
+      icon: '🛡️',
+      title: 'Public Trust Index',
+      description: 'No verified orders have been recorded yet.',
+      subtext: 'Integrity scoring will appear once dispatch events are written to the ledger.',
+      statusLabel: 'Idle',
+      tone: 'inactive'
+    });
+  }
   const badgeClass = score >= 90 ? 'badge-green' : score >= 75 ? 'badge-blue' : score >= 60 ? 'badge-amber' : 'badge-red';
   return `
     <div class="glass-card trust-index-card" style="margin-bottom:24px;">
@@ -266,7 +311,10 @@ function loadEsgAlerts() {
  * @param {Array<Object>} alerts - Alerts to save.
  */
 function saveEsgAlerts(alerts) {
-  try { window.localStorage.setItem(ESG_ALERTS_KEY, JSON.stringify(alerts)); } catch { /* ignore */ }
+  try {
+    window.localStorage.setItem(ESG_ALERTS_KEY, JSON.stringify(alerts));
+    ReGenXRealtime?.syncRawKey(ESG_ALERTS_KEY, alerts, { eventType: 'KPI_UPDATED', rooms: ['network_room', 'providers_room', 'riders_room', 'plants_room'] });
+  } catch { /* ignore */ }
 }
 
 /**
@@ -376,7 +424,14 @@ function renderComplianceWidget() {
         </div>
         <button class="btn btn-ghost btn-sm" onclick="showView('v-compliance')">Open →</button>
       </div>
-      ${alerts.length ? items : '<div class="empty-state" style="padding:24px;">No compliance alerts detected.</div>'}
+      ${alerts.length ? items : renderDashboardListState({
+        icon: '🧭',
+        title: 'No compliance alerts',
+        description: 'The ESG monitor has not detected any open alerts.',
+        subtext: 'Resolved alerts remain available in the audit history.',
+        statusLabel: 'Idle',
+        tone: 'inactive'
+      })}
     </div>
   `;
 }
@@ -400,7 +455,10 @@ function loadCreditLedger() {
  * @param {Array<Object>} entries - Ledger entries.
  */
 function saveCreditLedger(entries) {
-  try { window.localStorage.setItem(CREDIT_LEDGER_KEY, JSON.stringify(entries)); } catch { /* ignore */ }
+  try {
+    window.localStorage.setItem(CREDIT_LEDGER_KEY, JSON.stringify(entries));
+    ReGenXRealtime?.syncRawKey(CREDIT_LEDGER_KEY, entries, { eventType: 'KPI_UPDATED', rooms: ['network_room', 'providers_room'] });
+  } catch { /* ignore */ }
 }
 
 /**
@@ -431,6 +489,16 @@ function getReconciliationSummary() {
  */
 function renderReconciliationWidget() {
   const summary = getReconciliationSummary();
+  if (!summary.total) {
+    return renderEmptyStateCard({
+      icon: '🧮',
+      title: 'Carbon Credit Reconciliation',
+      description: 'No ledger entries are available yet.',
+      subtext: 'Minted credits and mismatch checks will appear after the first verified dispatch.',
+      statusLabel: 'Idle',
+      tone: 'inactive'
+    });
+  }
   const badgeClass = summary.score >= 90 ? 'badge-green' : summary.score >= 75 ? 'badge-blue' : summary.score >= 60 ? 'badge-amber' : 'badge-red';
   return `
     <div class="glass-card reconciliation-card" style="margin-bottom:24px;">
@@ -469,7 +537,10 @@ function loadSlaLedger() {
  * @param {Array<Object>} entries - SLA entries.
  */
 function saveSlaLedger(entries) {
-  try { window.localStorage.setItem(SLA_LEDGER_KEY, JSON.stringify(entries)); } catch { /* ignore */ }
+  try {
+    window.localStorage.setItem(SLA_LEDGER_KEY, JSON.stringify(entries));
+    ReGenXRealtime?.syncRawKey(SLA_LEDGER_KEY, entries, { eventType: 'KPI_UPDATED', rooms: ['network_room', 'providers_room', 'riders_room', 'plants_room'] });
+  } catch { /* ignore */ }
 }
 
 /**
@@ -570,7 +641,10 @@ function loadEnergyLedger() {
  * @param {Array<Object>} entries - Energy entries.
  */
 function saveEnergyLedger(entries) {
-  try { window.localStorage.setItem(ENERGY_LEDGER_KEY, JSON.stringify(entries)); } catch { /* ignore */ }
+  try {
+    window.localStorage.setItem(ENERGY_LEDGER_KEY, JSON.stringify(entries));
+    ReGenXRealtime?.syncRawKey(ENERGY_LEDGER_KEY, entries, { eventType: 'KPI_UPDATED', rooms: ['network_room', 'providers_room', 'plants_room'] });
+  } catch { /* ignore */ }
 }
 
 /**
@@ -964,6 +1038,7 @@ window.resetAppData = function() {
     if (k && k.startsWith(STORAGE_KEY_PREFIX)) keysToRemove.push(k);
   }
   keysToRemove.forEach(k => window.localStorage.removeItem(k));
+  ReGenXRealtime?.clearOperationalState(keysToRemove);
   // Also clear theme preference
   window.localStorage.removeItem('regenx-theme');
   // Reload fresh
@@ -981,8 +1056,10 @@ window.fetchWeather = async function(lat, lng) {
 
 // ── STATE ──
 let SESSION = { role: null, name: '', org: '', uid: '', lat: null, lng: null };
+window.SESSION = SESSION;
 let selectedRole = 'provider';
 let currentView = '';
+window.currentView = currentView;
 let rMap = null; // Rider map instance
 let autoRefreshTimer = null;
 
@@ -995,6 +1072,109 @@ window.toggleTheme = function() {
 }
 const savedTheme = window.localStorage.getItem('regenx-theme') || 'light';
 document.documentElement.setAttribute('data-theme', savedTheme);
+
+// ══════════════════════════════════════
+// GOOGLE AUTH
+// ══════════════════════════════════════
+
+window.initGoogleAuth = function () {
+
+  if (!window.google) {
+    console.error("Google SDK not loaded");
+    return;
+  }
+
+  google.accounts.id.initialize({
+
+    client_id:
+      "661991506161-rb6j5n5klovjupfal1ip2qstcu0k366a.apps.googleusercontent.com",
+
+    callback:
+      handleGoogleLogin
+  });
+
+  // RENDER GOOGLE BUTTON
+  google.accounts.id.renderButton(
+
+    document.getElementById(
+      "google-login-btn"
+    ),
+
+    {
+      theme: "outline",
+      size: "large",
+      width: 280
+    }
+  );
+};
+
+function handleGoogleLogin(response) {
+
+  const token =
+    response.credential;
+
+  const payload =
+    JSON.parse(
+      atob(token.split('.')[1])
+    );
+
+  const acc = {
+
+    id: uid(),
+
+    role: "provider",
+
+    name: payload.name,
+
+    org: payload.email,
+
+    email: payload.email,
+
+    avatar: payload.picture,
+
+    lat: 28.5355,
+
+    lng: 77.3910,
+
+    tokens: 0,
+
+    authProvider: "google"
+  };
+
+  // SAVE ACCOUNT
+ const existing = DB
+  .list('acc:')
+  .map(k => DB.get(k))
+  .find(u => u.email === acc.email);
+
+if(existing){
+
+  executeLogin(existing);
+
+}else{
+
+  DB.set('acc:' + acc.id, acc);
+
+  executeLogin(acc);
+}
+
+  // LOGIN DIRECTLY
+  executeLogin(acc);
+
+  showToast(
+    `✓ Welcome ${acc.name}`
+  );
+}
+
+// AUTO LOGIN CHECK
+window.addEventListener("DOMContentLoaded", () => {
+
+  setTimeout(() => {
+
+    initGoogleAuth();
+
+  }, 500);
+});
 
 // ── AUTH & REGISTRATION ──
 window.switchAuthTab = function(tab) {
@@ -1232,6 +1412,7 @@ window.fundProject = function() {
 
 function executeLogin(acc) {
   SESSION = acc;
+  window.SESSION = SESSION;
   document.getElementById('login-screen').style.display = 'none';
   document.getElementById('app-shell').classList.add('active');
   
@@ -1273,12 +1454,22 @@ function executeLogin(acc) {
   
   buildSidebar();
   autoRefreshTimer = setInterval(() => refreshCurrentView(), 15000);
+  ReGenXRealtime?.setSession(SESSION);
 }
 
 
 window.doLogout = function() {
   clearInterval(autoRefreshTimer);
-  SESSION = { role:null, name:'', org:'', uid:'', lat:null, lng:null };
+  clearInterval(tickerTimer);
+  clearInterval(gwTimer);
+  stopIoTSim();
+  if (pvChartInstance) { pvChartInstance.destroy(); pvChartInstance = null; }
+  if (plChartInstance) { plChartInstance.destroy(); plChartInstance = null; }
+  if (rMap) { rMap.remove(); rMap = null; }
+  SESSION = { role: null, name: '', org: '', uid: '', lat: null, lng: null };
+  window.SESSION = SESSION;
+  window.currentView = '';
+  ReGenXRealtime?.setSession(null);
   document.getElementById('app-shell').classList.remove('active');
   document.getElementById('login-screen').style.display = 'flex';
   switchAuthTab('login');
@@ -1310,7 +1501,7 @@ function buildSidebar() {
   if (SESSION.role === 'rider') {
     nav.innerHTML = `
       <button class="nav-item active" onclick="showView('v-rd-dash')" id="nav-v-rd-dash"><span class="nav-item-icon">🗺️</span> Active Route</button>
-      <button class="nav-item" onclick="showView('v-rd-jobs')" id="nav-v-rd-jobs"><span class="nav-item-icon">📋</span> Available Jobs <span class="nav-badge" id="rd-badge" style="display:none">0</span></button>
+      <button class="nav-item" onclick="showView('v-rd-jobs')" id="nav-v-rd-jobs"><span class="nav-item-icon">📋</span> Available Jobs <span class="nav-badge" id="rd-badge" style="display:none"></span></button>
       <button class="nav-item" onclick="showView('v-rd-hist')" id="nav-v-rd-hist"><span class="nav-item-icon">✓</span> Completions</button>
       <button class="nav-item" onclick="showView('v-compliance')" id="nav-v-compliance"><span class="nav-item-icon">🧭</span> Compliance Center</button>
       <button class="nav-item" onclick="showView('v-reconciliation')" id="nav-v-reconciliation"><span class="nav-item-icon">🧮</span> Reconciliation</button>
@@ -1345,6 +1536,7 @@ function buildSidebar() {
 
 window.showView = function(viewId) {
   currentView = viewId;
+  window.currentView = currentView;
   document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
   const btn = document.getElementById('nav-' + viewId);
   if(btn) btn.classList.add('active');
@@ -1371,12 +1563,145 @@ window.toggleSidebar = function(force) {
 function getAllOrders() { return DB.list('ord:').map(k => DB.get(k)).filter(Boolean).sort((a,b)=>b.ts-a.ts); }
 function getOrder(id) { return DB.get('ord:'+id); }
 function saveOrder(o) { 
-  DB.set('ord:'+o.id, o); 
-  if (window.CloudSync && window.CloudSync.isLive) {
-      window.CloudSync.pushDocument('orders', o);
-  }
+  DB.set('ord:'+o.id, o, { rooms: ['network_room', 'providers_room', 'riders_room', 'plants_room', 'admin_room'], eventType: 'KPI_UPDATED' });
 }
 function getAllLogs() { return DB.list('log:').map(k => DB.get(k)).filter(Boolean).sort((a,b)=>b.ts-a.ts); }
+
+function renderStatusBadge(label, tone = 'neutral') {
+  return `<span class="status-badge status-badge-${tone}">${label}</span>`;
+}
+
+function renderLoadingSkeleton(lines = 2) {
+  const bars = Array.from({ length: lines }, (_, index) => {
+    const width = index === 0 ? '68%' : index === lines - 1 ? '52%' : '88%';
+    return `<div class="skeleton-loader" style="width:${width};"></div>`;
+  }).join('');
+  return `
+    <div class="dashboard-state dashboard-state-loading" aria-busy="true">
+      <div class="dashboard-state-head">
+        <div class="dashboard-state-icon">⏳</div>
+        ${renderStatusBadge('Loading', 'loading')}
+      </div>
+      <div class="dashboard-state-skeletons">
+        ${bars}
+      </div>
+    </div>
+  `;
+}
+
+function renderErrorState({ title = 'Operational error', description = 'Unable to load dashboard data.', subtext = 'Check the upstream system and refresh the view.', actionHtml = '' } = {}) {
+  return `
+    <div class="dashboard-state dashboard-state-error">
+      <div class="dashboard-state-head">
+        <div class="dashboard-state-icon">⚠️</div>
+        ${renderStatusBadge('Error', 'error')}
+      </div>
+      <div class="dashboard-state-title">${title}</div>
+      <div class="dashboard-state-desc">${description}</div>
+      ${subtext ? `<div class="dashboard-state-sub">${subtext}</div>` : ''}
+      ${actionHtml ? `<div class="dashboard-state-actions">${actionHtml}</div>` : ''}
+    </div>
+  `;
+}
+
+function renderEmptyStateCard({ icon = '◌', title = 'No data available', description = 'There is no operational data for this widget yet.', subtext = '', statusLabel = 'Idle', tone = 'inactive', actionHtml = '' } = {}) {
+  return `
+    <div class="dashboard-state dashboard-state-empty">
+      <div class="dashboard-state-head">
+        <div class="dashboard-state-icon">${icon}</div>
+        ${renderStatusBadge(statusLabel, tone)}
+      </div>
+      <div class="dashboard-state-title">${title}</div>
+      <div class="dashboard-state-desc">${description}</div>
+      ${subtext ? `<div class="dashboard-state-sub">${subtext}</div>` : ''}
+      ${actionHtml ? `<div class="dashboard-state-actions">${actionHtml}</div>` : ''}
+    </div>
+  `;
+}
+
+function renderMetricCard({ title, value, description = '', status = 'active', icon = '●', statusLabel = 'Active', tone = 'active', accent = '', unit = '', actionHtml = '', trend = null, sparkline = [] } = {}) {
+  if (status === 'loading') return renderLoadingSkeleton(2);
+  if (status === 'error') return renderErrorState({ title, description, subtext: '', actionHtml });
+  if (status === 'empty') {
+    return renderEmptyStateCard({ icon, title, description, statusLabel: 'No data', tone: 'inactive', actionHtml });
+  }
+  if (status === 'inactive') {
+    return renderEmptyStateCard({ icon, title, description, statusLabel, tone: 'inactive', actionHtml });
+  }
+
+  const valueText = value === null || typeof value === 'undefined' ? '—' : value;
+  const style = accent ? ` style="border-top-color:${accent};"` : '';
+  const trendDirection = trend?.direction || 'flat';
+  const trendTone = trendDirection === 'up' ? 'positive' : trendDirection === 'down' ? 'negative' : 'neutral';
+  const trendArrow = trendDirection === 'up' ? '↗' : trendDirection === 'down' ? '↘' : '→';
+  return `
+    <div class="stat-card dashboard-state dashboard-state-active state-${tone}"${style}>
+      <div class="dashboard-state-head">
+        <div class="dashboard-state-icon">${icon}</div>
+        ${renderStatusBadge(statusLabel, tone)}
+      </div>
+      <div class="dashboard-state-body">
+        <div class="metric-hero-row">
+          <div class="metric-hero-value">${valueText}${unit ? `<span class="metric-unit">${unit}</span>` : ''}</div>
+          ${trend ? `<span class="metric-trend metric-trend-${trendTone}"><span>${trendArrow}</span><span>${trend.label || trend.text || ''}</span></span>` : ''}
+        </div>
+        <div class="metric-title">${title}</div>
+        ${description ? `<div class="metric-desc">${description}</div>` : ''}
+      </div>
+      ${sparkline.length ? renderSparkline(sparkline, tone) : ''}
+      ${actionHtml ? `<div class="dashboard-state-actions">${actionHtml}</div>` : ''}
+    </div>
+  `;
+}
+
+function renderMetricGrid(cards = []) {
+  return cards.join('');
+}
+
+function renderDashboardListState({ icon = '◌', title = 'No data available', description = 'This section is empty right now.', subtext = '', statusLabel = 'Idle', tone = 'inactive', actionHtml = '' } = {}) {
+  return renderEmptyStateCard({ icon, title, description, subtext, statusLabel, tone, actionHtml });
+}
+
+function renderSectionPlaceholder({ title = 'Loading data', description = 'Preparing dashboard state…' } = {}) {
+  return `
+    <div class="dashboard-section-placeholder">
+      <div class="dashboard-section-placeholder-title">${title}</div>
+      <div class="dashboard-section-placeholder-body">
+        <div class="skeleton-loader" style="width:72%;"></div>
+        <div class="skeleton-loader" style="width:58%;"></div>
+        <div class="skeleton-loader" style="width:84%;"></div>
+      </div>
+      <div class="dashboard-state-sub">${description}</div>
+    </div>
+  `;
+}
+
+function renderSparkline(values = [], tone = 'active') {
+  if (!values.length) return '';
+  const max = Math.max(...values.map(v => Number(v) || 0), 1);
+  const bars = values.map((value, index) => {
+    const height = Math.max(18, Math.round(((Number(value) || 0) / max) * 100));
+    return `<span class="spark-bar ${index === values.length - 1 ? 'is-last' : ''}" style="height:${height}%;"></span>`;
+  }).join('');
+  return `<div class="metric-sparkline metric-sparkline-${tone}">${bars}</div>`;
+}
+
+function buildStatusStepper(status) {
+  if (status === 'rejected') return '';
+  const steps = [
+    { key: 'requested', label: 'Requested' },
+    { key: 'assigned',  label: 'Assigned'  },
+    { key: 'en_route',  label: 'En Route'  },
+    { key: 'picked_up', label: 'Picked Up' },
+    { key: 'at_plant',  label: 'At Plant'  },
+    { key: 'completed', label: 'Completed' },
+  ];
+  const idx = steps.findIndex(s => s.key === status);
+  return `<div class="order-stepper">${steps.map((s, i) => {
+    const cls = i < idx ? 'done' : i === idx && status !== 'completed' ? 'active' : i <= idx ? 'done' : '';
+    return `<div class="os-step ${cls}"><div class="os-dot"></div><div class="os-label">${s.label}</div></div>`;
+  }).join('')}</div>`;
+}
 
 // Generic Order Card Component
 function buildOrderCard(o, role) {
@@ -1419,7 +1744,7 @@ function buildOrderCard(o, role) {
     acts = `<button class="btn btn-primary btn-sm" onclick="openPlantConfirm('${o.id}')">Confirm Receipt ✓</button>`;
   }
   if (['provider', 'rider', 'plant'].includes(role) && o.status === 'completed') {
-    acts += `<button class="btn btn-outline-danger btn-sm" onclick="deleteOrder('${o.id}')" style="margin-left:auto;">🗑 Delete Record</button>`;
+    acts += `<button class="btn btn-outline-danger btn-sm" onclick="deleteOrder('${o.id}')">🗑 Delete Record</button>`;
   }
 
   acts += `<button class="btn btn-ghost btn-sm" onclick="openIntegrityScan('${o.id}')">🛡 Integrity Scan</button>`;
@@ -1438,6 +1763,7 @@ function buildOrderCard(o, role) {
         <div class="oc-meta-item">🕒 ${o.shift}</div>
         <div class="oc-meta-item">⚗️ Dest: ${o.plantName}</div>
       </div>
+      ${buildStatusStepper(o.status)}
       ${o.actualKg ? `<div style="margin-bottom:8px;font-size:13px;color:var(--green);font-weight:600;">✓ Actual Collected: ${o.actualKg}kg (Quality: ${o.quality})</div>` : ''}
       ${o.tokensMinted ? `<div style="margin-bottom:8px;font-size:13px;color:var(--amber);font-weight:600;">🪙 Minted ${o.tokensMinted} $RGX <span style="font-size:10px; color:var(--text-muted); font-family:monospace; margin-left:8px;">TX: ${o.txHash.slice(0,12)}...</span></div>` : ''}
       ${acts ? `<div class="oc-actions">${acts}</div>` : ''}
@@ -1605,13 +1931,14 @@ function renderCompliance(mc, fullRender) {
                 <button class="btn btn-ghost btn-sm" onclick="resolveEsgAlert('${a.id}')">Resolve</button>
               </div>
             </div>
-          `).join('') : '<div class="empty-state">No active alerts.</div>'}
-        </div>
-      </div>
-
-      <div class="glass-card compliance-card">
-        <div class="between" style="margin-bottom:12px;">
-          <h4 style="font-size:16px;">Resolved Alerts</h4>
+      `).join('') : renderDashboardListState({
+        icon: '🛡️',
+        title: 'No active alerts',
+        description: 'All compliance checks are clear for now.',
+        subtext: 'New alerts will appear here when issues are detected.',
+        statusLabel: 'Idle',
+        tone: 'inactive'
+      })}
           <span class="badge badge-green">${resolvedAlerts.length} Done</span>
         </div>
         <div class="compliance-list">
@@ -1623,7 +1950,14 @@ function renderCompliance(mc, fullRender) {
               </div>
               <span class="badge badge-green">RESOLVED</span>
             </div>
-          `).join('') : '<div class="empty-state">No resolved alerts yet.</div>'}
+          `).join('') : renderDashboardListState({
+            icon: '✅',
+            title: 'No resolved alerts yet',
+            description: 'There are no resolved compliance alerts to display.',
+            subtext: 'Resolved alerts will appear here once issues are closed.',
+            statusLabel: 'Idle',
+            tone: 'inactive'
+          })}
         </div>
       </div>
     </div>
@@ -1670,7 +2004,14 @@ function renderReconciliation(mc, fullRender) {
             </div>
             <span class="badge ${e.deltaPct >= 8 ? 'badge-red' : 'badge-green'}">${e.deltaPct >= 8 ? 'FLAG' : 'OK'}</span>
           </div>
-        `).join('') : '<div class="empty-state">No reconciliation entries yet.</div>'}
+        `).join('') : renderDashboardListState({
+          icon: '🧾',
+          title: 'No reconciliation entries',
+          description: 'There are no credit ledger entries to review yet.',
+          subtext: 'Recorded carbon credits will populate this list once available.',
+          statusLabel: 'Idle',
+          tone: 'inactive'
+        })}
       </div>
     </div>
   `;
@@ -1725,7 +2066,14 @@ function renderSlaMonitor(mc, fullRender) {
               <span class="badge ${badge}">${status}</span>
             </div>
           `;
-        }).join('') : '<div class="empty-state">No SLA entries yet.</div>'}
+        }).join('') : renderDashboardListState({
+          icon: '⏱️',
+          title: 'No SLA entries yet',
+          description: 'No dispatch SLA records are available right now.',
+          subtext: 'Active and completed dispatch SLAs will appear in this section.',
+          statusLabel: 'Idle',
+          tone: 'inactive'
+        })}
       </div>
     </div>
   `;
@@ -1770,7 +2118,13 @@ function renderEnergyScorecard(mc, fullRender) {
             </div>
             <span class="badge ${e.score >= 85 ? 'badge-green' : e.score >= 70 ? 'badge-blue' : e.score >= 55 ? 'badge-amber' : 'badge-red'}">${e.score}</span>
           </div>
-        `).join('') : '<div class="empty-state">No energy records yet.</div>'}
+        `).join('') : renderDashboardListState({
+          icon: '⚡',
+          title: 'No energy records yet',
+          description: 'Energy yield data will appear once bio-waste batches are processed.',
+          statusLabel: 'Idle',
+          tone: 'inactive'
+        })}
       </div>
     </div>
   `;
@@ -1815,7 +2169,13 @@ function renderSensorReliability(mc, fullRender) {
             </div>
             <span class="badge ${e.score >= 90 ? 'badge-green' : e.score >= 75 ? 'badge-blue' : e.score >= 60 ? 'badge-amber' : 'badge-red'}">${e.score}%</span>
           </div>
-        `).join('') : '<div class="empty-state">No sensor snapshots yet.</div>'}
+        `).join('') : renderDashboardListState({
+          icon: '📡',
+          title: 'No sensor snapshots yet',
+          description: 'Sensor health snapshots will appear as devices report data.',
+          statusLabel: 'Idle',
+          tone: 'inactive'
+        })}
       </div>
     </div>
   `;
@@ -1860,7 +2220,13 @@ function renderEmissionsTracker(mc, fullRender) {
             </div>
             <span class="badge ${e.score >= 85 ? 'badge-green' : e.score >= 70 ? 'badge-blue' : e.score >= 55 ? 'badge-amber' : 'badge-red'}">${e.score}</span>
           </div>
-        `).join('') : '<div class="empty-state">No emissions records yet.</div>'}
+        `).join('') : renderDashboardListState({
+          icon: '🌍',
+          title: 'No emissions records yet',
+          description: 'Tracked emissions routes will appear here after the first runs.',
+          statusLabel: 'Idle',
+          tone: 'inactive'
+        })}
       </div>
     </div>
   `;
@@ -2022,7 +2388,7 @@ async function renderProvider(mc, fullRender) {
                <div id="pv-trust-rank-icon" style="font-size:42px;">🥉</div>
                <div style="text-align:right;">
                   <div style="font-size:12px; font-weight:700; color:var(--text-muted); text-transform:uppercase;">Reputation Score</div>
-                  <div style="font-size:28px; font-weight:800; color:var(--blue);" id="pv-trust-score">0</div>
+                  <div style="font-size:28px; font-weight:800; color:var(--blue);" id="pv-trust-score">—</div>
                </div>
             </div>
             <div style="height:8px; background:rgba(0,0,0,0.1); border-radius:4px; overflow:hidden; margin-bottom:12px;">
@@ -2127,20 +2493,62 @@ async function renderProvider(mc, fullRender) {
     if(statsDiv) {
       const bins = getIoTBins();
       const critCount = bins.filter(b => b.fill >= 85).length;
-      statsDiv.innerHTML = `
-        <div class="stat-card"><div class="stat-val">${orders.length}</div><div class="stat-lbl">Total Requests</div></div>
-        <div class="stat-card"><div class="stat-val">${totalKg}</div><div class="stat-lbl">Kg Recycled</div></div>
-        <div class="stat-card"><div class="stat-val">${Math.round(totalKg*0.62)}</div><div class="stat-lbl">CO₂ Offset (kg)</div></div>
-        <div class="stat-card" style="border-top-color:${critCount > 0 ? 'var(--red)' : 'var(--green)'};cursor:pointer;" onclick="showView('v-iot-bins')">
-          <div class="stat-val" style="color:${critCount > 0 ? 'var(--red)' : 'var(--green)'}">${critCount}</div>
-          <div class="stat-lbl">Bins Critical</div>
-        </div>
-      `;
+      const requestState = orders.length ? 'active' : 'empty';
+      const kgState = orders.length ? 'active' : 'empty';
+      const offsetState = orders.length ? 'active' : 'empty';
+      const binState = bins.length ? (critCount > 0 ? 'active' : 'inactive') : 'empty';
+      statsDiv.innerHTML = renderMetricGrid([
+        renderMetricCard({
+          title: 'Total Requests',
+          value: orders.length,
+          description: orders.length ? 'Dispatch requests tracked in the system.' : 'No dispatch requests have been created yet.',
+          status: requestState === 'empty' ? 'empty' : 'active',
+          icon: '📦',
+          statusLabel: requestState === 'empty' ? 'No data' : 'Active',
+          tone: requestState === 'empty' ? 'inactive' : 'active'
+        }),
+        renderMetricCard({
+          title: 'Kg Recycled',
+          value: orders.length ? totalKg : null,
+          description: orders.length ? 'Recovered material captured from completed loads.' : 'No material has been processed yet.',
+          status: kgState === 'empty' ? 'empty' : 'active',
+          icon: '♻️',
+          statusLabel: kgState === 'empty' ? 'No data' : 'Active',
+          tone: kgState === 'empty' ? 'inactive' : 'active'
+        }),
+        renderMetricCard({
+          title: 'CO₂ Offset (kg)',
+          value: orders.length ? Math.round(totalKg * 0.62) : null,
+          description: orders.length ? 'Estimated emissions avoided from recovered waste.' : 'No offset can be calculated until loads are processed.',
+          status: offsetState === 'empty' ? 'empty' : 'active',
+          icon: '🌍',
+          statusLabel: offsetState === 'empty' ? 'No data' : 'Active',
+          tone: offsetState === 'empty' ? 'inactive' : 'active'
+        }),
+        renderMetricCard({
+          title: 'Bins Critical',
+          value: bins.length ? critCount : null,
+          description: bins.length ? 'Connected bins above the critical fill threshold.' : 'No IoT bins are connected yet.',
+          status: binState === 'empty' ? 'empty' : critCount > 0 ? 'active' : 'inactive',
+          icon: '🗑️',
+          statusLabel: binState === 'empty' ? 'No data' : critCount > 0 ? 'Warning' : 'Idle',
+          tone: binState === 'empty' ? 'inactive' : critCount > 0 ? 'warning' : 'inactive',
+          accent: critCount > 0 ? 'var(--red)' : 'var(--green)',
+          actionHtml: '<button class="btn btn-ghost btn-sm" onclick="showView(\'v-iot-bins\')">Open bins</button>'
+        })
+      ]);
     }
     const pvMyKg = document.getElementById('pv-my-kg');
     if(pvMyKg) pvMyKg.textContent = totalKg + ' kg';
     const pvActDiv = document.getElementById('pv-act');
-    if(pvActDiv) pvActDiv.innerHTML = active.length ? active.map(o=>buildOrderCard(o,'provider')).join('') : '<div class="empty-state"><div class="empty-sub">No active dispatches.</div></div>';
+    if(pvActDiv) pvActDiv.innerHTML = active.length ? active.map(o=>buildOrderCard(o,'provider')).join('') : renderDashboardListState({
+      icon: '🚚',
+      title: 'No active dispatches',
+      description: 'There are no in-flight provider orders right now.',
+      subtext: 'Create a dispatch request to populate this section.',
+      statusLabel: 'Idle',
+      tone: 'inactive'
+    });
 
     if(fullRender) setTimeout(initPvChart, 100);
 
@@ -2213,17 +2621,28 @@ async function renderProvider(mc, fullRender) {
   if (currentView === 'v-pv-hist-week' || currentView === 'v-pv-hist-month') {
     const isMonth = currentView === 'v-pv-hist-month';
     const limitDays = isMonth ? 30 : 7;
+
     const now = Date.now();
+    const completed = getAllOrders().filter(o => o.providerId === SESSION.id && o.status === 'completed');
     const filteredHistory = completed.filter(o => (now - o.ts) <= (limitDays * 24 * 60 * 60 * 1000));
     
     if(fullRender) mc.innerHTML = `
-      <div class="between" style="margin-bottom:24px;">
-         <h3 class="heading" style="margin-bottom:0;">${isMonth ? 'Monthly' : 'Weekly'} Records</h3>
-         ${filteredHistory.length ? `<button class="btn btn-outline-danger btn-sm" onclick="clearAllHistory('provider')">🗑 Clear All History</button>` : ''}
-      </div>
-      <div id="pv-hist-list"></div>
+      <section class="records-shell" aria-label="${isMonth ? 'Monthly' : 'Weekly'} records">
+        <div class="between records-header">
+           <h3 class="heading" style="margin-bottom:0;">${isMonth ? 'Monthly' : 'Weekly'} Records</h3>
+           ${filteredHistory.length ? `<div class="records-tools"><button class="btn btn-outline-danger btn-sm" onclick="clearAllHistory('provider')">🗑 Clear All History</button></div>` : ''}
+        </div>
+        <div id="pv-hist-list" class="record-stack"></div>
+      </section>
     `;
-    document.getElementById('pv-hist-list').innerHTML = filteredHistory.length ? filteredHistory.map(o=>buildOrderCard(o,'provider')).join('') : `<div class="empty-state"><div class="empty-sub">No completed history in the last ${limitDays} days.</div></div>`;
+    document.getElementById('pv-hist-list').innerHTML = filteredHistory.length ? filteredHistory.map(o=>buildOrderCard(o,'provider')).join('') : renderDashboardListState({
+      icon: '📦',
+      title: `No completed history in the last ${limitDays} days`,
+      description: 'No provider order history was recorded during this period.',
+      subtext: 'Completed dispatches will display here once available.',
+      statusLabel: 'Idle',
+      tone: 'inactive'
+    });
   }
 }
 
@@ -2337,7 +2756,7 @@ window.clearAllHistory = function(role) {
     if(role === 'rider') return o.riderId === SESSION.id && o.status === 'completed';
     return false;
   });
-  orders.forEach(o => window.localStorage.removeItem(STORAGE_KEY_PREFIX + 'ord:' + o.id));
+  orders.forEach(o => ReGenXRealtime?.removeOrderKey(o.id, { rooms: ['network_room', 'providers_room', 'riders_room', 'plants_room', 'admin_room'], eventType: 'KPI_UPDATED' }));
   showToast("✓ History Cleared");
   refreshCurrentView(true);
 }
@@ -2366,17 +2785,26 @@ window.submitPvRequest = function() {
   saveOrder(o);
   addSlaEntry(o);
   recordTrustEvent(o, 'requested', 'provider', { lat: SESSION.lat, lng: SESSION.lng });
+  publishOperationalEvent('DISPATCH_CREATED', [], {
+    toast: `New dispatch created for ${nearest.org}.`,
+    statusLabel: 'Dispatch live'
+  }, ['network_room', 'providers_room', 'riders_room', 'plants_room', 'admin_room']);
   showToast(`✓ Dispatched! Routed to ${nearest.org} (${minDist.toFixed(1)}km away).`);
   showView('v-pv-dash');
 }
 
 window.cancelOrder = function(id) {
   const o = getOrder(id); if(!o) return;
-  o.status = 'rejected'; saveOrder(o); showToast("Cancelled."); refreshCurrentView();
+  o.status = 'rejected'; saveOrder(o);
+  publishOperationalEvent('KPI_UPDATED', [], {
+    toast: `Dispatch #${o.id.slice(-6).toUpperCase()} was cancelled.`,
+    statusLabel: 'Cancelled'
+  }, ['network_room', 'providers_room', 'riders_room', 'plants_room', 'admin_room']);
+  showToast("Cancelled."); refreshCurrentView();
 }
 
 window.deleteOrder = function(id) {
-  window.localStorage.removeItem(STORAGE_KEY_PREFIX + 'ord:' + id);
+  ReGenXRealtime?.removeOrderKey(id, { rooms: ['network_room', 'providers_room', 'riders_room', 'plants_room', 'admin_room'], eventType: 'KPI_UPDATED', meta: { statusLabel: 'Order removed' } });
   showToast("✓ Record Deleted");
   refreshCurrentView(true);
 }
@@ -2525,7 +2953,7 @@ async function renderRider(mc, fullRender) {
           </div>
           <div class="glass-card sensor-card" style="margin-bottom:16px; padding:16px; border-color:var(--border);">
              <div style="font-size:12px; font-weight:600; color:var(--text-muted); margin-bottom:12px; text-transform:uppercase;">🌍 Live Conditions</div>
-             <div class="between" style="margin-bottom:8px;"><div>🌧️ Weather</div><div style="font-weight:700; color:var(--text-muted);" id="rt-weather">Fetching...</div></div>
+             <div class="between" style="margin-bottom:8px;"><div>🌧️ Weather</div><div id="rt-weather" class="skeleton-loader"></div></div>
              <div class="between" style="margin-bottom:8px;"><div>🚗 Traffic</div><div style="font-weight:700; color:var(--green);" id="rt-traffic">Normal</div></div>
              <div class="between"><div>⏱️ Weather Delay</div><div style="font-weight:700; color:var(--text-muted);" id="rt-ai-adj">+0 Mins</div></div>
           </div>
@@ -2535,12 +2963,26 @@ async function renderRider(mc, fullRender) {
              <div class="between" style="margin-bottom:8px;"><div>⏱️ ETA</div><div style="font-weight:700; color:var(--blue);" id="rt-eta">Calculating…</div></div>
              <div class="between" style="margin-bottom:8px;"><div>⛽ Fuel Saved</div><div style="font-weight:700; color:var(--green);" id="rt-fuel-saved">—</div></div>
              <div class="between"><div>🔋 Battery</div><div style="font-weight:700;" id="rt-batt">--</div></div>
-          </div>` : '<div class="empty-state">No active telemetry. Accept a job to see live data.</div>'}
+          </div>` : renderDashboardListState({
+            icon: '📡',
+            title: 'No active telemetry',
+            description: 'Accept a job to start live route telemetry.',
+            subtext: 'Weather, ETA, fuel, and battery values will appear after a route is active.',
+            statusLabel: 'Idle',
+            tone: 'inactive'
+          })}
         </div>
       </div>
     `;
     
-    document.getElementById('rd-act').innerHTML = activeJobs.length ? activeJobs.map(o => buildOrderCard(o, 'rider')).join('') : `<div class="empty-state"><div class="empty-icon">📍</div><div class="empty-title">No Active Task</div><div class="empty-sub">Check available jobs to begin a route.</div></div>`;
+    document.getElementById('rd-act').innerHTML = activeJobs.length ? activeJobs.map(o => buildOrderCard(o, 'rider')).join('') : renderDashboardListState({
+      icon: '📍',
+      title: 'No active task',
+      description: 'Check available jobs to begin a route.',
+      subtext: 'When a dispatch is accepted, route progress will appear here.',
+      statusLabel: 'Idle',
+      tone: 'inactive'
+    });
     
     if (activeJobs.length) {
       const active = activeJobs[0]; // Primary task for timeline
@@ -2657,7 +3099,7 @@ async function renderRider(mc, fullRender) {
             </div>
           `;
         }
-        showToast(`🤖 TSP Order ready (${source}). Fetching road route…`);
+        showToast(`🤖 TSP Order ready (${result?.source || 'route'}). Fetching road route…`);
 
         // PHASE 2: Try OSRM for real road geometry (async enhancement)
         const route = await fetchOSRMRoute(waypoints);
@@ -2704,6 +3146,10 @@ async function renderRider(mc, fullRender) {
           if(!w || currentView !== 'v-rd-dash') return;
           const wt = document.getElementById('rt-weather');
           const ct = document.getElementById('rt-temp');
+          const trafficEl = document.getElementById('rt-traffic');
+          const aiAdjEl = document.getElementById('rt-ai-adj');
+          const battEl = document.getElementById('rt-batt');
+          const confEl = document.getElementById('rt-conf');
           if(wt) {
             let cond = "Clear";
             if(w.weathercode > 50) cond = "Raining";
@@ -2711,28 +3157,47 @@ async function renderRider(mc, fullRender) {
             wt.textContent = cond + ` (${Math.round(w.temperature)}°C)`;
             wt.style.color = w.weathercode > 50 ? "var(--amber)" : "var(--green)";
             if(w.weathercode > 50) { 
-               document.getElementById('rt-traffic').textContent = "Congested"; 
-               document.getElementById('rt-ai-adj').textContent = "+12 Mins"; 
-               document.getElementById('rt-ai-adj').style.color = "var(--amber)"; 
+               if (trafficEl) trafficEl.textContent = "Congested"; 
+               if (aiAdjEl) {
+                 aiAdjEl.textContent = "+12 Mins"; 
+                 aiAdjEl.style.color = "var(--amber)";
+               }
             }
           }
           if(ct) ct.textContent = Math.round(w.temperature - 2) + "°C";
-          document.getElementById('rt-batt').textContent = Math.floor(Math.random() * 30 + 60) + "%";
-          document.getElementById('rt-batt').style.color = "var(--green)";
-          document.getElementById('rt-conf').textContent = "98.2%";
-          document.getElementById('rt-conf').style.color = "var(--blue)";
+          if (battEl) {
+            battEl.textContent = Math.floor(Math.random() * 30 + 60) + "%";
+            battEl.style.color = "var(--green)";
+          }
+          if (confEl) {
+            confEl.textContent = "98.2%";
+            confEl.style.color = "var(--blue)";
+          }
        });
     }
   }
 
   if (currentView === 'v-rd-jobs') {
     if(fullRender) mc.innerHTML = `<h3 class="heading" style="margin-bottom:24px;">Available Jobs</h3><div id="rd-jobs-list"></div>`;
-    document.getElementById('rd-jobs-list').innerHTML = pending.length ? pending.map(o=>buildOrderCard(o,'rider')).join('') : '<div class="empty-state"><div class="empty-sub">No pending requests right now.</div></div>';
+    document.getElementById('rd-jobs-list').innerHTML = pending.length ? pending.map(o=>buildOrderCard(o,'rider')).join('') : renderDashboardListState({
+      icon: '📋',
+      title: 'No pending requests',
+      description: 'There are no unassigned requests right now.',
+      subtext: 'New requests will populate this queue automatically.',
+      statusLabel: 'Idle',
+      tone: 'inactive'
+    });
   }
 
   if (currentView === 'v-rd-hist') {
     if(fullRender) mc.innerHTML = `<h3 class="heading" style="margin-bottom:24px;">Completions</h3><div id="rd-hist-list"></div>`;
-    document.getElementById('rd-hist-list').innerHTML = hist.length ? hist.map(o=>buildOrderCard(o,'rider')).join('') : '<div class="empty-state">No completions yet.</div>';
+    document.getElementById('rd-hist-list').innerHTML = hist.length ? hist.map(o=>buildOrderCard(o,'rider')).join('') : renderDashboardListState({
+      icon: '✓',
+      title: 'No completions yet',
+      description: 'Completed jobs will appear here after route closure.',
+      statusLabel: 'Idle',
+      tone: 'inactive'
+    });
   }
 }
 
@@ -2744,6 +3209,10 @@ window.riderAccept = function(id) {
   saveOrder(o);
   updateSlaEntry(o.id, { status: 'assigned' });
   recordTrustEvent(o, 'assigned', 'rider', { lat: SESSION.lat, lng: SESSION.lng });
+  publishOperationalEvent('KPI_UPDATED', [], {
+    toast: `Rider ${SESSION.name} accepted dispatch #${o.id.slice(-6).toUpperCase()}.`,
+    statusLabel: 'Route assigned'
+  }, ['network_room', 'providers_room', 'riders_room', 'plants_room', 'admin_room']);
   showToast("✓ Route Added to Batch!");
   showView('v-rd-dash');
 }
@@ -2752,6 +3221,10 @@ window.riderUpdate = function(id, st) {
   o.status = st; saveOrder(o);
   updateSlaEntry(o.id, { status: st });
   recordTrustEvent(o, st, 'rider', { lat: SESSION.lat, lng: SESSION.lng });
+  publishOperationalEvent('KPI_UPDATED', [], {
+    toast: `Dispatch #${o.id.slice(-6).toUpperCase()} moved to ${st.replace('_', ' ')}.`,
+    statusLabel: 'Route moving'
+  }, ['network_room', 'providers_room', 'riders_room', 'plants_room', 'admin_room']);
   refreshCurrentView();
 }
 window.openPickupConfirm = function(id) {
@@ -2772,6 +3245,10 @@ window.confirmPickup = function(id) {
   saveOrder(o);
   updateSlaEntry(o.id, { pickupTs: ts(), status: 'picked_up' });
   recordTrustEvent(o, 'picked_up', 'rider', { lat: SESSION.lat, lng: SESSION.lng });
+  publishOperationalEvent('PICKUP_CONFIRMED', [], {
+    toast: `Pickup confirmed for dispatch #${o.id.slice(-6).toUpperCase()}.`,
+    statusLabel: 'Pickup live'
+  }, ['network_room', 'providers_room', 'riders_room', 'plants_room', 'admin_room']);
   closeModal();
   refreshCurrentView();
 }
@@ -2834,7 +3311,14 @@ window.openIntegrityScan = function(orderId) {
           ${idx < events.length - 1 ? '<div class="trust-tl-line"></div>' : ''}
         </div>
       `;
-    }).join('') : '<div class="empty-state" style="margin-top:12px;">No ledger events yet.</div>';
+    }).join('') : renderDashboardListState({
+      icon: '🧾',
+      title: 'No ledger events yet',
+      description: 'This dispatch has no recorded custody events.',
+      subtext: 'Once the order is scanned, the timeline will populate here.',
+      statusLabel: 'Idle',
+      tone: 'inactive'
+    });
 
     box.innerHTML = `
       <h3 class="modal-title">Integrity Scan</h3>
@@ -2884,7 +3368,12 @@ window.openSettings = function() {
 
 window.deleteAccount = function() {
   if(confirm("Are you sure you want to permanently delete your account? This action cannot be undone.")) {
-    window.localStorage.removeItem(STORAGE_KEY_PREFIX + 'acc:' + SESSION.id);
+    ReGenXRealtime?.syncStorageMutation({
+      updates: [{ key: STORAGE_KEY_PREFIX + 'acc:' + SESSION.id, action: 'remove' }],
+      rooms: ['network_room', 'admin_room'],
+      eventType: 'KPI_UPDATED',
+      meta: { statusLabel: 'Account deleted' }
+    });
     closeModal();
     doLogout();
     refreshLoginDropdown();
@@ -2962,19 +3451,19 @@ async function renderPlant(mc, fullRender) {
       <h3 class="heading" style="margin-bottom:16px; margin-top:16px;">Live Digester Vitals</h3>
       <div class="stats-grid" style="margin-bottom:32px;">
         <div class="glass-card sensor-card" style="text-align:center;">
-           <div class="gauge-circle" style="border-top-color:var(--text-muted); animation:none;" id="pl-gauge-temp"><span>0°C</span></div>
-           <div style="font-weight:600;">Core Temp</div>
-           <div style="font-size:11px; color:var(--text-muted); margin-top:4px;" id="pl-stat-temp">Fetching...</div>
+          <div class="gauge-circle gauge-placeholder" style="border-top-color:var(--text-muted); animation:none;" id="pl-gauge-temp"><span>—</span></div>
+          <div style="font-weight:600;">Core Temp</div>
+          <div style="font-size:11px; color:var(--text-muted); margin-top:4px;" id="pl-stat-temp">Loading telemetry…</div>
         </div>
         <div class="glass-card sensor-card" style="text-align:center;">
-           <div class="gauge-circle" style="border-top-color:var(--text-muted); animation:none;"><span>0</span></div>
-           <div style="font-weight:600;">Pressure (atm)</div>
-           <div style="font-size:11px; color:var(--text-muted); margin-top:4px;">Offline</div>
+          <div class="gauge-circle gauge-placeholder" style="border-top-color:var(--text-muted); animation:none;" id="pl-gauge-pres"><span>—</span></div>
+          <div style="font-weight:600;">Pressure (atm)</div>
+          <div style="font-size:11px; color:var(--text-muted); margin-top:4px;" id="pl-stat-pres">Loading telemetry…</div>
         </div>
         <div class="glass-card sensor-card" style="text-align:center;">
-           <div class="gauge-circle" style="border-top-color:var(--text-muted); animation:none;"><span>0</span></div>
-           <div style="font-weight:600;">CH₄ Flow (m³/h)</div>
-           <div style="font-size:11px; color:var(--text-muted); margin-top:4px;">Offline</div>
+          <div class="gauge-circle gauge-placeholder" style="border-top-color:var(--text-muted); animation:none;" id="pl-gauge-flow"><span>—</span></div>
+          <div style="font-weight:600;">CH₄ Flow (m³/h)</div>
+          <div style="font-size:11px; color:var(--text-muted); margin-top:4px;" id="pl-stat-flow">Loading telemetry…</div>
         </div>
       </div>
 
@@ -2990,12 +3479,52 @@ async function renderPlant(mc, fullRender) {
     `;
     const totKg = completed.reduce((s,o)=>s+parseFloat(o.actualKg||0),0);
     const totBio = logs.reduce((s,l)=>s+parseFloat(l.bio||0),0);
+    const recentKgSeries = completed.slice(0, 6).reverse().map(o => Number(o.actualKg || o.kg || 0));
+    const recentBioSeries = logs.slice(0, 6).reverse().map(l => Number(l.bio || 0));
+    const bioTrendDirection = recentBioSeries.length > 1
+      ? (recentBioSeries[recentBioSeries.length - 1] > recentBioSeries[0] ? 'up' : recentBioSeries[recentBioSeries.length - 1] < recentBioSeries[0] ? 'down' : 'flat')
+      : 'flat';
+    const kgTrendDirection = recentKgSeries.length > 1
+      ? (recentKgSeries[recentKgSeries.length - 1] > recentKgSeries[0] ? 'up' : recentKgSeries[recentKgSeries.length - 1] < recentKgSeries[0] ? 'down' : 'flat')
+      : 'flat';
+    const loadsSeries = completed.slice(0, 6).reverse().map((_, index) => index + 1);
     
-    document.getElementById('pl-stats').innerHTML = `
-      <div class="stat-card"><div class="stat-val">${completed.length}</div><div class="stat-lbl">Processed Loads</div></div>
-      <div class="stat-card"><div class="stat-val">${totKg}</div><div class="stat-lbl">Kg Received</div></div>
-      <div class="stat-card"><div class="stat-val">${totBio.toFixed(1)}</div><div class="stat-lbl">Biogas (m³)</div></div>
-    `;
+    document.getElementById('pl-stats').innerHTML = renderMetricGrid([
+      renderMetricCard({
+        title: 'Processed Loads',
+        value: completed.length,
+        description: completed.length ? 'Completed deliveries recorded today.' : 'No loads processed today.',
+        status: completed.length ? 'active' : 'empty',
+        icon: '🚚',
+        statusLabel: completed.length ? 'Live' : 'No data',
+        tone: completed.length ? 'active' : 'inactive',
+        trend: completed.length ? { direction: 'up', label: 'Volume' } : null,
+        sparkline: loadsSeries
+      }),
+      renderMetricCard({
+        title: 'Kg Received',
+        value: completed.length ? totKg : null,
+        description: completed.length ? 'Feedstock captured from completed loads.' : 'No incoming mass has been logged.',
+        status: completed.length ? 'active' : 'empty',
+        icon: '⚖️',
+        statusLabel: completed.length ? 'Live' : 'No data',
+        tone: completed.length ? 'active' : 'inactive',
+        trend: completed.length ? { direction: kgTrendDirection, label: kgTrendDirection === 'up' ? 'Rising' : kgTrendDirection === 'down' ? 'Falling' : 'Flat' } : null,
+        sparkline: recentKgSeries
+      }),
+      renderMetricCard({
+        title: 'Biogas Generated',
+        value: completed.length ? (Number.isInteger(totBio) ? totBio : totBio.toFixed(1)) : null,
+        description: completed.length ? (totBio > 0 ? 'Current biogas yield from recent output logs.' : 'No activity detected today.') : 'Biogas output will appear after processing begins.',
+        status: completed.length ? 'active' : 'empty',
+        icon: '💨',
+        statusLabel: completed.length ? (totBio > 0 ? 'Live' : 'Zero Activity') : 'No data',
+        tone: completed.length ? 'active' : 'inactive',
+        unit: 'm³',
+        trend: completed.length ? { direction: bioTrendDirection, label: bioTrendDirection === 'up' ? 'Rising' : bioTrendDirection === 'down' ? 'Falling' : 'Flat' } : null,
+        sparkline: recentBioSeries.length ? recentBioSeries : completed.length ? [0, 0, 0, 0] : []
+      })
+    ]);
 
     // AI Yield Optimization Engine
     const yieldPrediction = YieldOptimizer.predictYield(completed.slice(0, 10)); // Use recent history
@@ -3024,14 +3553,27 @@ async function renderPlant(mc, fullRender) {
           </div>
         `;
     }
-    document.getElementById('pl-inc').innerHTML = incoming.length ? incoming.map(o=>buildOrderCard(o,'plant')).join('') : '<div class="empty-state">No trucks waiting at gate.</div>';
+    document.getElementById('pl-inc').innerHTML = incoming.length ? incoming.map(o=>buildOrderCard(o,'plant')).join('') : renderDashboardListState({
+      icon: '🚚',
+      title: 'No trucks waiting at gate',
+      description: 'Incoming flow is currently idle.',
+      subtext: 'New arrivals will appear here as they reach the plant.',
+      statusLabel: 'Idle',
+      tone: 'inactive'
+    });
     
     document.getElementById('pl-out-logs').innerHTML = logs.length ? logs.slice(0,4).map(l => `
       <div class="glass-card" style="padding:16px; margin-bottom:12px;">
          <div class="between" style="margin-bottom:8px;"><span class="badge badge-blue">Log</span> <span class="muted" style="font-size:12px">${fmtDate(l.ts)}</span></div>
          <div style="font-size:14px;"><strong>Biogas:</strong> ${l.bio} m³ &nbsp;·&nbsp; <strong>Compost:</strong> ${l.comp} kg</div>
       </div>
-    `).join('') : '<div class="empty-state">No outputs logged.</div>';
+    `).join('') : renderDashboardListState({
+      icon: '📜',
+      title: 'No outputs logged',
+      description: 'Biogas and compost outputs will appear here once the plant starts logging results.',
+      statusLabel: 'Idle',
+      tone: 'inactive'
+    });
     
     if(fullRender) {
       setTimeout(initPlChart, 100);
@@ -3062,7 +3604,14 @@ async function renderPlant(mc, fullRender) {
 
   if (currentView === 'v-pl-in') {
     if(fullRender) mc.innerHTML = `<h3 class="heading" style="margin-bottom:24px;">Incoming Flow</h3><div id="pl-in-list"></div>`;
-    document.getElementById('pl-in-list').innerHTML = incoming.length ? incoming.map(o=>buildOrderCard(o,'plant')).join('') : '<div class="empty-state">No incoming.</div>';
+    document.getElementById('pl-in-list').innerHTML = incoming.length ? incoming.map(o=>buildOrderCard(o,'plant')).join('') : renderDashboardListState({
+      icon: '🚛',
+      title: 'No incoming flow',
+      description: 'There are no inbound loads queued for the plant.',
+      subtext: 'Dispatch activity will populate this lane automatically.',
+      statusLabel: 'Idle',
+      tone: 'inactive'
+    });
   }
 
   if (currentView === 'v-pl-out') {
@@ -3106,6 +3655,7 @@ window.openPlantConfirm = function(id) {
 
 window.confirmPlantReceipt = function(id) {
   const o = getOrder(id); if(!o) return;
+  if (o.status === 'completed') return showToast('Order already processed.');
   const score = document.getElementById('p-score').value || 0;
   o.status = 'completed'; o.segScore = score;
   
@@ -3126,8 +3676,11 @@ window.confirmPlantReceipt = function(id) {
          document.getElementById('token-balance').textContent = SESSION.tokens;
      }
 
-     const expectedTokens = TrustProtocol.calculateReward(baseTokens, trustScore);
-     const deltaPct = expectedTokens ? Math.abs(earnedTokens - expectedTokens) / expectedTokens * 100 : 0;
+      // Expected tokens represent the base (non-trust-multiplied) reward.
+      // Minted tokens include the TrustProtocol multiplier, so deltaPct reflects
+      // the trust bonus/penalty percentage (and enables mismatch flagging).
+      const expectedTokens = baseTokens;
+      const deltaPct = expectedTokens > 0 ? Math.abs(earnedTokens - expectedTokens) / expectedTokens * 100 : 0;
      addCreditEntry({
        id: 'credit-' + uid(),
        orderId: o.id,
@@ -3161,6 +3714,10 @@ window.confirmPlantReceipt = function(id) {
       ts: ts()
     });
   }
+  publishOperationalEvent('DELIVERY_COMPLETED', [], {
+    toast: `Plant confirmed receipt for dispatch #${o.id.slice(-6).toUpperCase()}.`,
+    statusLabel: 'Delivery complete'
+  }, ['network_room', 'providers_room', 'riders_room', 'plants_room', 'admin_room']);
   const route = getOrderRouteEndpoints(o);
   if (route.start && route.end) {
     const distanceKm = parseFloat(distanceKm(route.start.lat, route.start.lng, route.end.lat, route.end.lng).toFixed(1));
@@ -3449,13 +4006,14 @@ function renderIoT(mc, fullRender) {
 
     <!-- Bin Cards Grid -->
     <div class="iot-bins-grid" id="iot-bins-grid">
-      ${bins.length ? bins.map(buildBinCard).join('') : `
-        <div class="empty-state" style="grid-column:1/-1;">
-          <div class="empty-icon">🗑️</div>
-          <div class="empty-title">No bins connected</div>
-          <div class="empty-sub">Click <strong>+ Add Bin</strong> to register your first IoT sensory bin.</div>
-        </div>`}
-    </div>
+      ${bins.length ? bins.map(buildBinCard).join('') : renderDashboardListState({
+        icon: '🗑️',
+        title: 'No bins connected',
+        description: 'Register your first IoT bin to begin monitoring waste fill levels.',
+        actionHtml: '<button class="btn btn-ghost btn-sm" onclick="showView(\'v-iot-bins\')">Add Bin</button>',
+        statusLabel: 'Idle',
+        tone: 'inactive'
+      })}
 
     <!-- Network telemetry footer -->
     <div class="glass-card sensor-card" style="margin-top:28px; padding:20px;">
@@ -3552,6 +4110,11 @@ window.iotDispatchFromBin = function(id) {
   showToast('⚠ Fill in quantity and submit to dispatch a collection for this bin.');
 };
 
+window.refreshCurrentView = refreshCurrentView;
+window.refreshLoginDropdown = refreshLoginDropdown;
+window.startGreenWall = startGreenWall;
+window.syncIoTAlertBadge = syncIoTAlertBadge;
+
 // ── INIT ──
 (function seedDB() {
   if (!DB.get('iot-bins')) {
@@ -3570,4 +4133,64 @@ document.getElementById('login-screen').style.display = 'flex';
 switchAuthTab('login');
 
 // ── Initialize Appwrite Cloud Sync Engine ──
+setTimeout(() => { ReGenXRealtime?.init(); ReGenXRealtime?.requestSnapshot?.(); }, 1000);
 setTimeout(() => { if (window.CloudSync) window.CloudSync.init(); }, 1000);
+
+// Expose module-scoped functions to global scope for inline HTML handlers
+window.doRegister = doRegister;
+window.doLogin = doLogin;
+window.switchAuthTab = switchAuthTab;
+window.selectRole = selectRole;
+window.detectGPS = detectGPS;
+window.searchLocation = searchLocation;
+window.resetAppData = resetAppData;
+window.doLogout = doLogout;
+window.toggleTheme = toggleTheme;
+window.toggleSidebar = toggleSidebar;
+window.saveOrder = saveOrder;
+window.refreshCurrentView = refreshCurrentView;
+
+/**
+ * Returns the currently active view ID.
+ * @returns {string} The active view ID.
+ */
+window.getCurrentView = () => currentView;
+
+/**
+ * Returns the active user session object.
+ * @returns {Object} The session object.
+ */
+window.getSESSION = () => SESSION;
+
+/**
+ * @function animateAuthEntry
+ * @description Triggers a GSAP entrance animation on the login box for desktop viewports.
+ * Enhances perceived performance and visual polish on non-touch devices.
+ */
+function animateAuthEntry() {
+  if (window.gsap && window.matchMedia('(min-width: 768px)').matches) {
+    gsap.from('.login-box', {
+      y: 40,
+      opacity: 0,
+      duration: 0.7,
+      ease: 'power3.out'
+    });
+  }
+}
+
+window.addEventListener('DOMContentLoaded', animateAuthEntry);
+
+/**
+ * @function detectDeviceClass
+ * @description Detects whether the user is on a touch (mobile) or pointer (desktop) device
+ * using the CSS media query API. Applies a data-device attribute to <body> so CSS can
+ * serve targeted layout rules without JS-in-CSS hacks.
+ * @returns {void}
+ */
+function detectDeviceClass() {
+  const isTouch = window.matchMedia('(pointer: coarse)').matches;
+  document.body.setAttribute('data-device', isTouch ? 'mobile' : 'desktop');
+}
+
+detectDeviceClass();
+window.detectDeviceClass = detectDeviceClass;

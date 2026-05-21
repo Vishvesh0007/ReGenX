@@ -6,7 +6,7 @@ We support the latest version on the default branch. Please use the most recent 
 ## Reporting a Vulnerability
 If you discover a security issue, please report it privately.
 
-- Email: security@regenx.org
+- No: 9820866720 (satyam)
 - Subject: "ReGenX Security Report"
 
 Please include:

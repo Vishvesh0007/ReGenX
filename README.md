@@ -10,8 +10,10 @@
 <br>
 
 <h3>
-### 👨‍🏫 Project Mentor
-**SATYAM PANDEY**
+ 👨‍🏫 Project Mentor
+</h3>
+<h3>
+  SATYAM PANDEY
 </h3>
 
  LinkedIn: https://www.linkedin.com/in/satyam-pandey-0b246432a/
@@ -43,12 +45,15 @@ The platform combines AI-powered waste scanning, live GPS tracking, analytics da
 - Contamination detection and organic percentage scoring
 - Auto-fills dispatch form fields based on scan results
 - Supports live camera capture and file upload
+  <br>
 
 ### 📍 Real-Time GPS & Mapping
 - High-accuracy GPS detection with draggable pin refinement
 - Address-based geocoding via **Nominatim / OpenStreetMap**
 - 50km service radius enforcement for route eligibility
 - Live rider tracking with **Leaflet.js** interactive maps
+
+<br>
 
 ### 👥 Role-Based Dashboards
 | Role | Capabilities |
@@ -57,11 +62,15 @@ The platform combines AI-powered waste scanning, live GPS tracking, analytics da
 | 🚛 **Rider** | Accept routes, navigate to pickup, confirm collection with AI scan |
 | ⚗️ **Plant** | Monitor incoming waste flow, confirm receipt, log processed output |
 
+<br>
+
 ### 🪙 $RGX Token Economy
 - Providers earn **$RGX tokens** on every verified pickup
 - Trade tokens on the **ReGen DeFi Exchange** (CSR NFTs, Smart Bin Hardware, Energy Vouchers)
 - Stake tokens in the **Carbon Credit Fund** (12.5% APY)
 - Contribute to the **Amazon Reforestation Initiative** crowdfund
+
+<br>
 
 ### 🌍 Impact & Analytics
 - CO₂ offset calculator (per completed dispatch)
@@ -70,12 +79,16 @@ The platform combines AI-powered waste scanning, live GPS tracking, analytics da
 - AI-predicted waste volume for next day
 - **The Green Wall** — live community sustainability activity feed
 
+<br>
+
 ### 🎨 Premium UI/UX
 - Glassmorphism design with dark/light theme toggle
 - Live ticker bar with real-time platform activity
 - Smooth micro-animations and transitions
 - Fully responsive — mobile-first PWA with offline support
 - Space Grotesk + Inter typography
+
+  <br>
 
 ### 💎 Quality Standards
 
@@ -211,11 +224,9 @@ Deployment script automatically::
 
 ---
 
----
 
 <div align="center">
 
----
  
 ## 🔄 Pickup Workflow
 

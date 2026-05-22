@@ -553,9 +553,31 @@ function loadTrustLedger() {
     const raw = window.localStorage.getItem(TRUST_LEDGER_KEY);
     const parsed = raw ? JSON.parse(raw) : [];
     if (!Array.isArray(parsed)) return [];
-    return parsed.filter(e => e && e._v === 1);
+    const ledger = parsed.filter(e => e && typeof e === 'object');
+    const verification = TrustProtocol.verifyLedgerIntegrity(ledger);
+    if (!verification.valid) {
+      handleTrustLedgerTamper(verification);
+    }
+    return ledger;
   } catch {
+    handleTrustLedgerTamper({ valid: false, tampered: true, brokenIndex: null });
     return [];
+  }
+}
+
+let trustLedgerTamperWarningShown = false;
+
+/**
+ * @function handleTrustLedgerTamper
+ * @description Shows a single warning toast when trust ledger integrity is compromised.
+ * @param {{valid:boolean,tampered:boolean,brokenIndex:(number|null)}} result - Verification result.
+ * @returns {void}
+ */
+function handleTrustLedgerTamper(result) {
+  if (trustLedgerTamperWarningShown || !result?.tampered) return;
+  trustLedgerTamperWarningShown = true;
+  if (window.showToast) {
+    window.showToast('⚠ Trust ledger integrity compromised.');
   }
 }
 
@@ -575,26 +597,96 @@ function handleLedgerStorageError(err) {
 /**
  * Save trust ledger events to localStorage.
  * @param {Array<Object>} events - Ledger events.
+ * @returns {Promise<boolean>} True when persistence succeeds.
  */
-function saveTrustLedger(events) {
+async function saveTrustLedger(events) {
   try {
     const capped = Array.isArray(events) ? events.slice(-200) : [];
-    window.localStorage.setItem(TRUST_LEDGER_KEY, JSON.stringify(capped));
-    ReGenXRealtime?.syncRawKey(TRUST_LEDGER_KEY, capped, { eventType: 'KPI_UPDATED', rooms: ['network_room', 'providers_room', 'riders_room', 'plants_room'] });
-  } catch (err) { handleLedgerStorageError(err); }
+    const prepared = await prepareTrustLedgerForWrite(capped);
+    const verification = TrustProtocol.verifyLedgerIntegrity(prepared);
+    if (!verification.valid) {
+      handleTrustLedgerTamper(verification);
+      return false;
+    }
+    window.localStorage.setItem(TRUST_LEDGER_KEY, JSON.stringify(prepared));
+    ReGenXRealtime?.syncRawKey(TRUST_LEDGER_KEY, prepared, { eventType: 'KPI_UPDATED', rooms: ['network_room', 'providers_room', 'riders_room', 'plants_room'] });
+    return true;
+  } catch (err) {
+    handleLedgerStorageError(err);
+    return false;
+  }
 }
 
 /**
  * Generate a ledger hash (SHA-256 length) for integrity records.
- * @returns {string} Hex hash with 0x prefix.
+ * @param {Object} entry - Ledger payload.
+ * @param {string} previousHash - Previous ledger hash.
+ * @returns {Promise<string>} Hex hash with 0x prefix.
  */
-function generateLedgerHash() {
-  if (window.crypto && window.crypto.getRandomValues) {
-    const bytes = new Uint8Array(32);
-    window.crypto.getRandomValues(bytes);
-    return '0x' + Array.from(bytes, b => b.toString(16).padStart(2, '0')).join('');
+async function generateLedgerHash(entry, previousHash = 'GENESIS') {
+  return TrustProtocol.generateLedgerHash(entry, previousHash);
+}
+
+/**
+ * Build the canonical payload for trust ledger hashing.
+ * @param {Object} entry - Ledger entry values.
+ * @param {string} previousHash - Previous chain hash.
+ * @returns {Object} Canonical entry payload.
+ */
+function buildTrustLedgerPayload(entry, previousHash = 'GENESIS') {
+  return {
+    previousHash: typeof previousHash === 'string' && previousHash ? previousHash : 'GENESIS',
+    orderId: typeof entry?.orderId === 'string' ? entry.orderId : String(entry?.orderId ?? ''),
+    event: typeof entry?.event === 'string' ? entry.event : String(entry?.event ?? ''),
+    ts: Number.isFinite(entry?.ts) ? entry.ts : ts(),
+    actorRole: typeof entry?.actorRole === 'string' ? entry.actorRole : String(entry?.actorRole ?? ''),
+    actorId: typeof entry?.actorId === 'string' ? entry.actorId : String(entry?.actorId ?? ''),
+    lat: Number.isFinite(entry?.lat) ? entry.lat : null,
+    lng: Number.isFinite(entry?.lng) ? entry.lng : null
+  };
+}
+
+/**
+ * Normalize a ledger entry into the sealed v2 format and recalculate its hash.
+ * @param {Object} entry - Raw ledger entry.
+ * @param {string} previousHash - Previous chain hash.
+ * @returns {Promise<Object>} Normalized ledger entry.
+ */
+async function prepareTrustLedgerEntry(entry, previousHash = 'GENESIS') {
+  const payload = buildTrustLedgerPayload(entry, previousHash);
+  const hash = await generateLedgerHash(payload, previousHash);
+  return {
+    _v: 2,
+    id: typeof entry?.id === 'string' && entry.id ? entry.id : uid(),
+    orderId: payload.orderId,
+    event: payload.event,
+    ts: payload.ts,
+    lat: payload.lat,
+    lng: payload.lng,
+    actorRole: payload.actorRole,
+    actorId: payload.actorId,
+    trustScore: Number.isFinite(entry?.trustScore) ? entry.trustScore : 0,
+    previousHash,
+    hash,
+    sealed: true,
+    verified: true
+  };
+}
+
+/**
+ * Prepare a ledger for persistence by sealing every entry with a fresh hash chain.
+ * @param {Array<Object>} events - Raw or partially normalized ledger entries.
+ * @returns {Promise<Array<Object>>} Prepared ledger entries.
+ */
+async function prepareTrustLedgerForWrite(events) {
+  const prepared = [];
+  let previousHash = 'GENESIS';
+  for (const entry of Array.isArray(events) ? events : []) {
+    const normalized = await prepareTrustLedgerEntry(entry, previousHash);
+    prepared.push(normalized);
+    previousHash = normalized.hash;
   }
-  return '0x' + Array.from({ length: 64 }, () => Math.floor(Math.random() * 16).toString(16)).join('');
+  return prepared;
 }
 
 /**
@@ -615,6 +707,15 @@ function getOrderRouteEndpoints(order) {
 }
 
 /**
+ * Get trust ledger events for an order in stored chain order.
+ * @param {string} orderId - Order id.
+ * @returns {Array<Object>} Order events in chain order.
+ */
+function getOrderLedgerChainEvents(orderId) {
+  return loadTrustLedger().filter(e => e.orderId === orderId);
+}
+
+/**
  * Get ledger events for a specific order.
  * @param {string} orderId - Order id.
  * @returns {Array<Object>} Order events.
@@ -629,7 +730,7 @@ function getOrderLedgerEvents(orderId) {
  * @returns {{score:number, maxGapMins:number, maxDeviationKm:number, anomalies:{timeGap:boolean,routeDeviation:boolean}}}
  */
 function getOrderIntegrity(order) {
-  const events = getOrderLedgerEvents(order.id);
+  const events = getOrderLedgerChainEvents(order.id);
   const route = getOrderRouteEndpoints(order);
   return TrustProtocol.calculateIntegrityScore(events, route, distanceKm);
 }
@@ -641,11 +742,19 @@ function getOrderIntegrity(order) {
  * @param {string} actorRole - Actor role.
  * @param {{lat?:number,lng?:number}} coords - Event coordinates.
  */
-function recordTrustEvent(order, event, actorRole, coords = {}) {
-  if (!order) return;
+async function recordTrustEvent(order, event, actorRole, coords = {}) {
+  if (!order) return false;
   const ledger = loadTrustLedger();
+  const verification = TrustProtocol.verifyLedgerIntegrity(ledger);
+  if (!verification.valid) {
+    handleTrustLedgerTamper(verification);
+    return false;
+  }
+
+  const preparedLedger = await prepareTrustLedgerForWrite(ledger);
+  const previousHash = preparedLedger.length ? preparedLedger[preparedLedger.length - 1].hash : 'GENESIS';
   const entry = {
-    _v: 1,
+    _v: 2,
     id: uid(),
     orderId: order.id,
     event,
@@ -653,16 +762,25 @@ function recordTrustEvent(order, event, actorRole, coords = {}) {
     lat: typeof coords.lat === 'number' ? coords.lat : null,
     lng: typeof coords.lng === 'number' ? coords.lng : null,
     actorRole,
-    actorId: SESSION.id,
+    actorId: SESSION?.id || 'unknown',
     trustScore: 0,
-    hash: generateLedgerHash()
+    previousHash,
+    hash: '',
+    sealed: true,
+    verified: true
   };
-  const nextLedger = [...ledger, entry];
+  entry.hash = await generateLedgerHash(entry, previousHash);
+
+  const nextLedger = [...preparedLedger, entry];
   const route = getOrderRouteEndpoints(order);
   const orderEvents = nextLedger.filter(e => e.orderId === order.id);
   const integrity = TrustProtocol.calculateIntegrityScore(orderEvents, route, distanceKm);
+  if (integrity.tampered) {
+    handleTrustLedgerTamper(integrity);
+    return false;
+  }
   entry.trustScore = integrity.score;
-  saveTrustLedger(nextLedger);
+  return saveTrustLedger(nextLedger);
 }
 
 /**

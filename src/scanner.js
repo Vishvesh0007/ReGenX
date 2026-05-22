@@ -256,7 +256,7 @@ window.BioScanner = (function () {
           <div style="position:absolute;inset:0;background:radial-gradient(circle at 50% 0%,${color}22,transparent 60%);pointer-events:none;"></div>
           <div style="font-size:36px; margin-bottom:8px; animation: bs-pop 0.4s cubic-bezier(0.34,1.56,0.64,1);">${icon}</div>
           <div style="font-size:13px; font-weight:800; letter-spacing:2px; color:${color}; text-transform:uppercase; margin-bottom:4px;">${statusText}</div>
-          <div style="font-size:22px; font-weight:700; margin-bottom:2px;">${result.wasteCategory}</div>
+          <div style="font-size:22px; font-weight:700; margin-bottom:2px;">${escapeHTML(result.wasteCategory)}</div>
           <div style="font-size:12px; color:var(--text-muted);">AI Confidence: <strong style="color:${color}">${result.confidence}%</strong> &nbsp;·&nbsp; Organic Content: <strong>${result.organicPercent}%</strong></div>
         </div>
 
@@ -283,7 +283,7 @@ window.BioScanner = (function () {
         <!-- Analysis Details -->
         <div style="background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:16px; display:flex; flex-direction:column; gap:10px;">
           <div style="font-size:12px; font-weight:700; text-transform:uppercase; color:var(--text-muted); margin-bottom:2px;">AI Analysis</div>
-          <div style="font-size:13px; line-height:1.6;"><strong>Assessment:</strong> ${result.reason}</div>
+          <div style="font-size:13px; line-height:1.6;"><strong>Assessment:</strong> ${escapeHTML(result.reason)}</div>
           <div style="
             background:${bgColor};
             border:1px solid ${color}44;
@@ -291,7 +291,7 @@ window.BioScanner = (function () {
             padding:12px;
             font-size:13px;
             line-height:1.6;
-          "><strong>Recommendation:</strong> ${result.recommendation}</div>
+          "><strong>Recommendation:</strong> ${escapeHTML(result.recommendation)}</div>
         </div>
 
         <!-- Raw Predictions -->
@@ -300,7 +300,7 @@ window.BioScanner = (function () {
           ${result.allPredictions.map((p, i) => `
             <div style="display:flex; align-items:center; gap:10px; margin-bottom:${i < 2 ? '8px' : '0'};">
               <div style="font-size:12px; min-width:20px; color:var(--text-muted);">#${i+1}</div>
-              <div style="font-size:12px; flex:1; font-weight:500;">${p.className?.split(',')[0] || '—'}</div>
+              <div style="font-size:12px; flex:1; font-weight:500;">${escapeHTML(p.className?.split(',')[0] || '—')}</div>
               <div style="font-size:12px; font-weight:700; color:var(--text-muted);">${Math.round((p.probability||0)*100)}%</div>
               <div style="width:60px; height:5px; background:var(--border); border-radius:3px; overflow:hidden;">
                 <div style="height:100%; width:${Math.round((p.probability||0)*100)}%; background:var(--green); border-radius:3px;"></div>
@@ -335,7 +335,7 @@ window.BioScanner = (function () {
       <div style="text-align:center; padding:32px;">
         <div style="font-size:40px; margin-bottom:12px;">⚠️</div>
         <div style="font-size:16px; font-weight:700; margin-bottom:8px; color:var(--red)">Scan Error</div>
-        <div style="font-size:13px; color:var(--text-muted); margin-bottom:24px;">${msg}</div>
+        <div style="font-size:13px; color:var(--text-muted); margin-bottom:24px;">${escapeHTML(msg)}</div>
         <button class="btn btn-primary" onclick="BioScanner._rescan()">Try Again</button>
       </div>
     `;

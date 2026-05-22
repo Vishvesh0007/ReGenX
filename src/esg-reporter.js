@@ -97,9 +97,9 @@ export const ESGReporter = {
 
             <div style="margin-bottom:32px; padding:20px; border-left:4px solid #0D9488; background:#F8FAFC;">
                 <h3 style="margin-top:0; color:#0F172A;">Entity Details</h3>
-                <p><strong>Organization:</strong> ${account.org || account.name}</p>
-                <p><strong>Role:</strong> ${account.role.toUpperCase()}</p>
-                <p><strong>Network ID:</strong> ${account.id}</p>
+                <p><strong>Organization:</strong> ${escapeHTML(account.org || account.name)}</p>
+                <p><strong>Role:</strong> ${escapeHTML(account.role).toUpperCase()}</p>
+                <p><strong>Network ID:</strong> ${escapeHTML(account.id)}</p>
             </div>
 
             <h3 style="border-bottom:2px solid #E2E8F0; padding-bottom:8px; margin-bottom:24px;">Environmental Impact Summary</h3>

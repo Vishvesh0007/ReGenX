@@ -1764,7 +1764,7 @@ window.searchLocation = async function() {
       const lat = parseFloat(data[0].lat);
       const lng = parseFloat(data[0].lon);
       detectedPos = { lat, lng };
-      st.innerHTML = `<span style="color:var(--green)">✓ Found: ${data[0].display_name.split(',')[0]}</span>`;
+      st.innerHTML = `<span style="color:var(--green)">✓ Found: ${escapeHTML(data[0].display_name.split(',')[0])}</span>`;
       
       const mapEl = document.getElementById('reg-map');
       mapEl.classList.add('show');
@@ -1823,7 +1823,7 @@ async function refreshLoginDropdown() {
   if(accounts.length === 0) {
     sel.innerHTML = '<option value="">-- No accounts registered yet --</option>';
   } else {
-    sel.innerHTML = accounts.map(a => `<option value="${a.id}">${a.name} (${a.org}) - ${a.role.toUpperCase()}</option>`).join('');
+    sel.innerHTML = accounts.map(a => `<option value="${escapeHTML(a.id)}">${escapeHTML(a.name)} (${escapeHTML(a.org)}) - ${escapeHTML(a.role).toUpperCase()}</option>`).join('');
   }
 }
 
@@ -1867,7 +1867,7 @@ function startGreenWall() {
   completedOrders.slice(0, 5).forEach(o => {
     const el = document.createElement('div');
     el.className = 'gw-item';
-    el.innerHTML = `<div>🌟 ${o.providerOrg} diverted ${o.actualKg || o.kg}kg of waste!</div><div class="gw-time">${fmtDate(o.ts)}</div>`;
+    el.innerHTML = `<div>🌟 ${escapeHTML(o.providerOrg)} diverted ${escapeHTML(o.actualKg || o.kg)}kg of waste!</div><div class="gw-time">${fmtDate(o.ts)}</div>`;
     feed.appendChild(el);
   });
 }
@@ -1878,7 +1878,7 @@ window.buyMarketItem = function(price, name) {
   const hash = '0x' + Array.from({length:40}, () => Math.floor(Math.random()*16).toString(16)).join('');
   const html = `
     <h3 class="modal-title">Web3 Smart Contract Interaction</h3>
-    <p class="modal-sub">Minting <strong>${name}</strong> to the ReGen Layer-2 Network...</p>
+    <p class="modal-sub">Minting <strong>${escapeHTML(name)}</strong> to the ReGen Layer-2 Network...</p>
     <div style="background:#0a0a0a; color:#0f0; font-family:monospace; padding:16px; border-radius:8px; font-size:12px; margin-bottom:16px; border:1px solid #333;">
        <div>> Initializing secure connection...</div>
        <div style="animation: fadeIn 1s 0.5s both">> Deducting ${price} $RGX tokens...</div>
@@ -2283,7 +2283,7 @@ function buildOrderCard(o, role) {
   return `
     <div class="order-card" data-status="${o.status}">
       <div class="oc-header">
-        <div class="oc-title">${o.providerOrg} <span style="font-size:12px;color:var(--text-muted);font-family:monospace">#${o.id.slice(-6).toUpperCase()}</span></div>
+        <div class="oc-title">${escapeHTML(o.providerOrg)} <span style="font-size:12px;color:var(--text-muted);font-family:monospace">#${escapeHTML(o.id).slice(-6).toUpperCase()}</span></div>
         <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
           ${badges[o.status]}
           ${trustBadge}
@@ -2398,10 +2398,10 @@ async function refreshCurrentView(fullRender = false) {
          ${Intelligence.MARKETPLACE_ITEMS.map(item => `
           <div class="market-card glass-card">
             <div class="mc-icon">${item.icon}</div>
-            <div class="mc-title">${item.name}</div>
-            <p style="font-size: 12px; color: var(--text-muted); margin-bottom: 12px;">${item.description}</p>
+            <div class="mc-title">${escapeHTML(item.name)}</div>
+            <p style="font-size: 12px; color: var(--text-muted); margin-bottom: 12px;">${escapeHTML(item.description)}</p>
             <div class="mc-price">${item.price} $RGX</div>
-            <button class="btn btn-primary btn-full" onclick="buyMarketItem(${item.price}, '${item.name}')">Mint Asset</button>
+            <button class="btn btn-primary btn-full" onclick="buyMarketItem(${item.price}, '${escapeHTML(item.name)}')">Mint Asset</button>
           </div>
          `).join('')}
       </div>
@@ -2529,7 +2529,7 @@ function renderReconciliation(mc, fullRender) {
         ${entries.length ? entries.slice(0, 12).map(e => `
           <div class="reconciliation-item ${e.deltaPct >= 8 ? 'flagged' : ''}">
             <div>
-              <div class="reconciliation-title">Order #${e.orderId.slice(-6).toUpperCase()} · ${e.org}</div>
+              <div class="reconciliation-title">Order #${escapeHTML(e.orderId).slice(-6).toUpperCase()} · ${escapeHTML(e.org)}</div>
               <div class="reconciliation-sub">Expected ${e.expectedTokens} $RGX · Minted ${e.mintedTokens} $RGX · Δ ${e.deltaPct.toFixed(1)}%</div>
               <div class="reconciliation-sub">${fmtDate(e.ts)} · Trust ${e.trustScore}%</div>
             </div>
@@ -2590,7 +2590,7 @@ function renderSlaMonitor(mc, fullRender) {
           return `
             <div class="sla-item ${liveBreach ? 'risk' : ''}">
               <div>
-                <div class="sla-title">Order #${e.orderId.slice(-6).toUpperCase()} · ${e.org}</div>
+                <div class="sla-title">Order #${escapeHTML(e.orderId).slice(-6).toUpperCase()} · ${escapeHTML(e.org)}</div>
                 <div class="sla-sub">Elapsed ${elapsed} min · Target ${e.targetMins} min</div>
                 <div class="sla-sub">Started ${fmtDate(e.createdTs)}</div>
               </div>
@@ -2644,7 +2644,7 @@ function renderEnergyScorecard(mc, fullRender) {
         ${entries.length ? entries.slice(0, 12).map(e => `
           <div class="energy-item">
             <div>
-              <div class="energy-title">${e.org} · ${e.kg} kg processed</div>
+              <div class="energy-title">${escapeHTML(e.org)} · ${escapeHTML(e.kg)} kg processed</div>
               <div class="energy-sub">${e.energyKwh} kWh · Efficiency ${e.efficiencyPct}% · ${fmtDate(e.ts)}</div>
             </div>
             <span class="badge ${e.score >= 85 ? 'badge-green' : e.score >= 70 ? 'badge-blue' : e.score >= 55 ? 'badge-amber' : 'badge-red'}">${e.score}</span>
@@ -2746,7 +2746,7 @@ function renderEmissionsTracker(mc, fullRender) {
         ${entries.length ? entries.slice(0, 12).map(e => `
           <div class="emissions-item">
             <div>
-              <div class="emissions-title">${e.org} · ${e.distanceKm} km</div>
+              <div class="emissions-title">${escapeHTML(e.org)} · ${escapeHTML(e.distanceKm)} km</div>
               <div class="emissions-sub">${e.emissionKg} kg emitted · ${e.offsetKg} kg offset · ${fmtDate(e.ts)}</div>
             </div>
             <span class="badge ${e.score >= 85 ? 'badge-green' : e.score >= 70 ? 'badge-blue' : e.score >= 55 ? 'badge-amber' : 'badge-red'}">${e.score}</span>
@@ -2797,7 +2797,7 @@ function renderQualityIndex(mc, fullRender) {
         ${entries.length ? entries.slice(0, 12).map(e => `
           <div class="quality-item">
             <div>
-              <div class="quality-title">${e.org} · ${e.kg} kg processed</div>
+              <div class="quality-title">${escapeHTML(e.org)} · ${escapeHTML(e.kg)} kg processed</div>
               <div class="quality-sub">Score ${e.score} · Seg ${e.segScore}% · ${fmtDate(e.ts)}</div>
             </div>
             <span class="badge ${e.score >= 85 ? 'badge-green' : e.score >= 70 ? 'badge-blue' : e.score >= 55 ? 'badge-amber' : 'badge-red'}">${e.score}</span>
@@ -3003,7 +3003,7 @@ async function renderProvider(mc, fullRender) {
       } else {
         const lbHTML = lbSorted.map((item, i) => `
           <div class="between" style="padding:8px 0; border-bottom:${i<2?'1px solid var(--border)':'none'};">
-             <div style="font-weight:600;"><span style="color:var(--amber);">${i+1}.</span> ${item.org} ${item.id===SESSION.id?'(You)':''}</div>
+             <div style="font-weight:600;"><span style="color:var(--amber);">${i+1}.</span> ${escapeHTML(item.org)} ${item.id===SESSION.id?'(You)':''}</div>
              <div class="badge badge-green">${item.kg} kg</div>
           </div>
         `).join('');
@@ -3113,7 +3113,7 @@ async function renderProvider(mc, fullRender) {
           return `
             <div style="margin-bottom:14px;">
               <div class="between" style="margin-bottom:5px;">
-                <div style="font-size:13px;font-weight:600;">${b.name}</div>
+                <div style="font-size:13px;font-weight:600;">${escapeHTML(b.name)}</div>
                 <div style="display:flex;align-items:center;gap:8px;">
                   ${badge}
                   <span style="font-size:13px;font-weight:700;color:${col};">${b.fill}%</span>
@@ -3613,14 +3613,14 @@ async function renderRider(mc, fullRender) {
             className: '', iconAnchor: [14, 14]
           });
           L.marker([job.providerLat, job.providerLng], { icon: ico }).addTo(rMap)
-            .bindPopup(`<b>Stop ${i+1}: ${job.providerOrg}</b><br>${job.kg}kg ${job.wasteType}`);
+            .bindPopup(`<b>Stop ${i+1}: ${escapeHTML(job.providerOrg)}</b><br>${escapeHTML(job.kg)}kg ${escapeHTML(job.wasteType)}`);
         });
         if (plant) {
           const pltIco = L.divIcon({
             html: `<div style="width:32px;height:32px;background:#0D9488;border-radius:8px;border:3px solid white;display:flex;align-items:center;justify-content:center;font-size:16px;box-shadow:0 2px 8px rgba(0,0,0,0.4);">🏭</div>`,
             className: '', iconAnchor: [16, 16]
           });
-          L.marker([plant.lat, plant.lng], { icon: pltIco }).addTo(rMap).bindPopup(`<b>Plant:</b> ${plant.org}`);
+          L.marker([plant.lat, plant.lng], { icon: pltIco }).addTo(rMap).bindPopup(`<b>Plant:</b> ${escapeHTML(plant.org)}`);
         }
 
         // Draw TSP-ordered path immediately (glowing glassmorphism neon route flow)
@@ -3666,12 +3666,12 @@ async function renderRider(mc, fullRender) {
             ${optimizedJobs.map((j, i) => `
               <div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px dashed var(--border);">
                 <div style="width:22px;height:22px;background:var(--amber);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:800;color:white;flex-shrink:0;">${i+1}</div>
-                <div style="flex:1;font-size:13px;font-weight:600;">${j.providerOrg}</div>
+                <div style="flex:1;font-size:13px;font-weight:600;">${escapeHTML(j.providerOrg)}</div>
                 <div style="font-size:11px;color:var(--text-muted);">${RouteOptimizer.calculateDistance(i===0?SESSION.lat:optimizedJobs[i-1].providerLat, i===0?SESSION.lng:optimizedJobs[i-1].providerLng, j.providerLat, j.providerLng).toFixed(1)}km</div>
               </div>`).join('')}
             <div style="display:flex;align-items:center;gap:10px;padding:8px 0;">
               <div style="width:22px;height:22px;background:var(--green);border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:13px;">🏭</div>
-              <div style="flex:1;font-size:13px;font-weight:600;">${plant ? plant.org : 'Plant'}</div>
+              <div style="flex:1;font-size:13px;font-weight:600;">${escapeHTML(plant ? plant.org : 'Plant')}</div>
             </div>
           `;
         }
@@ -3700,13 +3700,13 @@ async function renderRider(mc, fullRender) {
                 const leg = route.legs[i];
                 return `<div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px dashed var(--border);">
                   <div style="width:22px;height:22px;background:var(--amber);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:800;color:white;flex-shrink:0;">${i+1}</div>
-                  <div style="flex:1;font-size:13px;font-weight:600;">${j.providerOrg}</div>
+                  <div style="flex:1;font-size:13px;font-weight:600;">${escapeHTML(j.providerOrg)}</div>
                   ${leg ? `<div style="font-size:11px;color:var(--text-muted);">${leg.duration_min}min · ${leg.distance_km}km</div>` : ''}
                 </div>`;
               }).join('')}
               <div style="display:flex;align-items:center;gap:10px;padding:8px 0;">
                 <div style="width:22px;height:22px;background:var(--green);border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:13px;">🏭</div>
-                <div style="flex:1;font-size:13px;font-weight:600;">${plant ? plant.org : 'Plant'}</div>
+                <div style="flex:1;font-size:13px;font-weight:600;">${escapeHTML(plant ? plant.org : 'Plant')}</div>
                 ${route.legs[optimizedJobs.length] ? `<div style="font-size:11px;color:var(--text-muted);">${route.legs[optimizedJobs.length].duration_min}min · ${route.legs[optimizedJobs.length].distance_km}km</div>` : ''}
               </div>
             `;
@@ -4005,9 +4005,9 @@ window.openSettings = function() {
     <p class="modal-sub">Manage your ReGenX Profile</p>
     <div style="background:var(--bg); padding:16px; border-radius:12px; margin-bottom:20px;">
       <div style="font-size:12px; color:var(--text-muted); text-transform:uppercase;">Name</div>
-      <div style="font-weight:600; margin-bottom:12px;">${SESSION.name}</div>
+      <div style="font-weight:600; margin-bottom:12px;">${escapeHTML(SESSION.name)}</div>
       <div style="font-size:12px; color:var(--text-muted); text-transform:uppercase;">Entity</div>
-      <div style="font-weight:600; margin-bottom:12px;">${SESSION.org}</div>
+      <div style="font-weight:600; margin-bottom:12px;">${escapeHTML(SESSION.org)}</div>
       <div style="font-size:12px; color:var(--text-muted); text-transform:uppercase;">Role</div>
       <div style="font-weight:600;">${SESSION.role.toUpperCase()}</div>
     </div>
@@ -4046,7 +4046,7 @@ window.openDigitalPassport = function() {
     const html = `
         <div style="text-align:center; padding:20px;">
             <div style="font-size:64px; margin-bottom:16px;">${rank.icon}</div>
-            <h3 class="modal-title">${SESSION.org}</h3>
+            <h3 class="modal-title">${escapeHTML(SESSION.org)}</h3>
             <p class="modal-sub">Verified Circular Economy Provider</p>
             
             <div class="glass-card" style="background:var(--bg); border:2px solid ${rank.color}; margin-bottom:24px; padding:20px;">
@@ -4608,7 +4608,7 @@ function buildBinCard(b) {
   <div class="iot-bin-card glass-card" id="iot-card-${b.id}">
     <div class="iot-card-header">
       <div>
-        <div class="iot-bin-name">🗑️ ${b.name}</div>
+        <div class="iot-bin-name">🗑️ ${escapeHTML(b.name)}</div>
         <div class="iot-bin-sub">ID: ${b.id} · Last ping: ${lastSeen}</div>
       </div>
       <div style="display:flex; align-items:center; gap:8px;">
@@ -4766,8 +4766,8 @@ window.iotEditBin = function(id) {
   const b = bins.find(x => x.id === id);
   if (!b) return;
   const html = `
-    <h3 class="modal-title">Edit Bin — ${b.name}</h3>
-    <div class="form-group"><label class="form-label">Bin Name</label><input class="form-input" id="iot-m-name" value="${b.name}"></div>
+    <h3 class="modal-title">Edit Bin — ${escapeHTML(b.name)}</h3>
+    <div class="form-group"><label class="form-label">Bin Name</label><input class="form-input" id="iot-m-name" value="${escapeHTML(b.name)}"></div>
     <div class="form-group"><label class="form-label">Fill Rate (kg/h)</label><input class="form-input" type="number" id="iot-m-rate" value="${b.rate}" step="0.1" min="0.1"></div>
     <div class="form-group"><label class="form-label">Status</label>
       <select class="form-select" id="iot-m-status">

@@ -191,7 +191,7 @@ export const AuditPortal = {
                         ${registry.map(rec => `
                             <div class="audit-registry-item">
                                 <div class="between" style="margin-bottom: 6px;">
-                                    <span style="font-weight: 700; color: var(--text);">${rec.org}</span>
+                                    <span style="font-weight: 700; color: var(--text);">${escapeHTML(rec.org)}</span>
                                     <span style="font-size: 11px; font-family: monospace; color: var(--green); font-weight: 700;">${rec.totalKg} Kg Offset</span>
                                 </div>
                                 <div style="display: flex; align-items: center; gap: 8px;">
@@ -301,7 +301,7 @@ export const AuditPortal = {
                         icon: '🏨',
                         active: true,
                         time: formatTimestamp(reqEvent.ts),
-                        desc: `Bio-waste logged by ${matchedOrder.providerOrg}. Declared Mass: ${matchedOrder.kg} kg. Type: ${matchedOrder.wasteType}.`
+                        desc: `Bio-waste logged by ${escapeHTML(matchedOrder.providerOrg)}. Declared Mass: ${escapeHTML(matchedOrder.kg)} kg. Type: ${escapeHTML(matchedOrder.wasteType)}.`
                     },
                     {
                         label: 'Logistics Route Optimized',
@@ -318,7 +318,7 @@ export const AuditPortal = {
                         active: matchedOrder.status === 'completed',
                         time: pickEvent ? formatTimestamp(pickEvent.ts) : (matchedOrder.status === 'completed' ? formatTimestamp(matchedOrder.ts + 3600000) : 'Pending'),
                         desc: matchedOrder.status === 'completed'
-                            ? `Received at facility: ${matchedOrder.plantName}. Measured weight: ${matchedOrder.actualKg} kg. Segregation quality score: ${matchedOrder.segScore || 85}%.`
+                            ? `Received at facility: ${escapeHTML(matchedOrder.plantName)}. Measured weight: ${escapeHTML(matchedOrder.actualKg)} kg. Segregation quality score: ${escapeHTML(matchedOrder.segScore || 85)}%.`
                             : 'Awaiting facility delivery and scale confirmation.'
                     },
                     {
@@ -353,7 +353,7 @@ export const AuditPortal = {
                         icon: '🏨',
                         active: true,
                         time: formatTimestamp(auditData.timestamp),
-                        desc: `Bio-waste logged by ${auditData.org}. Total Mass: ${auditData.totalKg} kg. Checked & certified.`
+                        desc: `Bio-waste logged by ${escapeHTML(auditData.org)}. Total Mass: ${escapeHTML(auditData.totalKg)} kg. Checked & certified.`
                     },
                     {
                         label: 'Logistics Route Optimized',
@@ -421,7 +421,7 @@ export const AuditPortal = {
 
                                 <div style="margin-bottom: 20px;">
                                     <div style="font-size: 10px; text-transform: uppercase; color: var(--text-muted); font-weight: 700; margin-bottom: 4px; letter-spacing: 0.5px;">Account Entity</div>
-                                    <div style="font-weight: 700; font-size: 18px; color: var(--text);">${auditData.org}</div>
+                                    <div style="font-weight: 700; font-size: 18px; color: var(--text);">${escapeHTML(auditData.org)}</div>
                                     <div style="font-size: 11px; color: var(--text-muted); text-transform: uppercase; margin-top: 2px;">Role: ${auditData.role.toUpperCase()} · ID: ${auditData.userId}</div>
                                 </div>
 

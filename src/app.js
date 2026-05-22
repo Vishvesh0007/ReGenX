@@ -237,22 +237,22 @@ function renderTrustIndexCard() {
     });
   }
   const badgeClass = score >= 90 ? 'badge-green' : score >= 75 ? 'badge-blue' : score >= 60 ? 'badge-amber' : 'badge-red';
-  return `
-    <div class="glass-card trust-index-card" style="margin-bottom:24px;">
-      <div class="between" style="margin-bottom:12px;">
-        <div>
-          <div style="font-size:12px; color:var(--text-muted); text-transform:uppercase; font-weight:700;">Public Trust Index</div>
-          <div style="font-size:20px; font-weight:800; margin-top:4px;">${score}/100</div>
+      return `
+        <div class="glass-card trust-index-card" style="margin-bottom:24px;">
+          <div class="between" style="margin-bottom:12px;">
+            <div>
+              <div style="font-size:12px; color:var(--text-muted); text-transform:uppercase; font-weight:700;">Public Trust Index</div>
+              <div style="font-size:20px; font-weight:800; margin-top:4px;">${score}/100</div>
+            </div>
+            <span class="badge ${badgeClass}">${label}</span>
+          </div>
+          <div class="trust-index-bar"><span style="width:${score}%;"></span></div>
+          <div class="between" style="margin-top:10px; font-size:12px; color:var(--text-muted);">
+            <div>${orderCount} verified order${orderCount === 1 ? '' : 's'}</div>
+            <div>${anomalyRate}% anomaly rate</div>
+          </div>
         </div>
-        <span class="badge ${badgeClass}">${label}</span>
-      </div>
-      <div class="trust-index-bar"><span style="width:${score}%;"></span></div>
-      <div class="between" style="margin-top:10px; font-size:12px; color:var(--text-muted);">
-        <div>${orderCount} verified order${orderCount === 1 ? '' : 's'}</div>
-        <div>${anomalyRate}% anomaly rate</div>
-      </div>
-    </div>
-  `;
+      `;
 }
 
 /**
@@ -365,15 +365,15 @@ function addEsgAlertsForOrder(order) {
  */
 function renderComplianceWidget() {
   const alerts = loadEsgAlerts().filter(a => !a.resolved).sort((a, b) => b.ts - a.ts);
-  const items = alerts.slice(0, 3).map(a => `
-    <div class="compliance-item">
-      <div>
-        <div class="compliance-title">${a.message}</div>
-        <div class="compliance-sub">Order #${a.orderId.slice(-6).toUpperCase()} · ${fmtDate(a.ts)}</div>
-      </div>
-      <span class="badge ${a.severity === 'high' ? 'badge-red' : 'badge-amber'}">${a.severity.toUpperCase()}</span>
-    </div>
-  `).join('');
+      const items = alerts.slice(0, 3).map(a => `
+        <div class="compliance-item">
+          <div>
+            <div class="compliance-title">${a.message}</div>
+            <div class="compliance-sub">Order #${a.orderId.slice(-6).toUpperCase()} · ${fmtDate(a.ts)}</div>
+          </div>
+          <span class="badge ${a.severity === 'high' ? 'badge-red' : 'badge-amber'}">${a.severity.toUpperCase()}</span>
+        </div>
+      `).join('');
 
   return `
     <div class="glass-card compliance-card" style="margin-bottom:24px;">
@@ -2926,6 +2926,8 @@ window.openIntegrityScan = function(orderId) {
     </div>
   `;
   modal.classList.add('open');
+  box.classList.add('integrity-modal');
+  box.classList.add('glass-card');
 
   setTimeout(() => {
     const events = getOrderLedgerEvents(orderId);
@@ -2933,26 +2935,36 @@ window.openIntegrityScan = function(orderId) {
     const statusClass = integrity.score >= 90 ? 'badge-green' : integrity.score >= 75 ? 'badge-blue' : integrity.score >= 60 ? 'badge-amber' : 'badge-red';
     const statusLabel = integrity.score >= 90 ? 'High Integrity' : integrity.score >= 75 ? 'Verified' : integrity.score >= 60 ? 'Watch' : 'Risk';
 
-    const timeline = events.length ? events.map((e, idx) => {
-      const meta = getIntegrityEventMeta(e.event);
-      return `
-        <div class="trust-tl-item">
-          <div class="trust-tl-icon">${meta.icon}</div>
-          <div>
-            <div class="trust-tl-title">${meta.label}</div>
-            <div class="trust-tl-sub">${fmtDate(e.ts)} · ${e.actorRole.toUpperCase()}</div>
+    let timeline = '';
+    if (events.length) {
+      timeline = events.map((e, idx) => {
+        const meta = getIntegrityEventMeta(e.event);
+        return `
+          <div class="trust-tl-item">
+            <div class="trust-tl-icon">${meta.icon}</div>
+            <div>
+              <div class="trust-tl-title">${meta.label}</div>
+              <div class="trust-tl-sub">${fmtDate(e.ts)} · ${e.actorRole.toUpperCase()}</div>
+            </div>
+            ${idx < events.length - 1 ? '<div class="trust-tl-line"></div>' : ''}
           </div>
-          ${idx < events.length - 1 ? '<div class="trust-tl-line"></div>' : ''}
+        `;
+      }).join('');
+    } else {
+      timeline = `
+        <div class="dashboard-state dashboard-state-empty">
+          <div class="dashboard-state-head">
+            <div class="dashboard-state-icon">🧾</div>
+            <span class="status-badge status-badge-inactive">IDLE</span>
+          </div>
+          <div style="flex:1;">
+            <div class="dashboard-state-title">No ledger events yet</div>
+            <div class="dashboard-state-desc">This dispatch has no recorded custody events.</div>
+            <div class="dashboard-state-sub">Once the order is scanned, the timeline will populate here.</div>
+          </div>
         </div>
       `;
-    }).join('') : renderDashboardListState({
-      icon: '🧾',
-      title: 'No ledger events yet',
-      description: 'This dispatch has no recorded custody events.',
-      subtext: 'Once the order is scanned, the timeline will populate here.',
-      statusLabel: 'Idle',
-      tone: 'inactive'
-    });
+    }
 
     box.innerHTML = `
       <h3 class="modal-title">Integrity Scan</h3>
@@ -2960,7 +2972,7 @@ window.openIntegrityScan = function(orderId) {
       <div class="integrity-summary">
         <div>
           <div style="font-size:12px; text-transform:uppercase; color:var(--text-muted); font-weight:700;">Trust Score</div>
-          <div style="font-size:24px; font-weight:800;">${integrity.score}/100</div>
+          <div class="trust-score-large">${integrity.score}/100</div>
         </div>
         <div style="text-align:right;">
           <div class="badge ${statusClass}">${statusLabel}</div>
@@ -2974,7 +2986,12 @@ window.openIntegrityScan = function(orderId) {
     `;
   }, 900);
 }
-window.closeModal = function() { document.getElementById('modal').classList.remove('open'); }
+window.closeModal = function() {
+  const modal = document.getElementById('modal');
+  const box = document.getElementById('modal-box');
+  if (modal) modal.classList.remove('open');
+  if (box) box.classList.remove('integrity-modal');
+}
 
 window.openSettings = function() {
   const html = `
@@ -3230,7 +3247,7 @@ async function renderPlant(mc, fullRender) {
   }
 
   if (currentView === 'v-pl-in') {
-    if(fullRender) mc.innerHTML = `<h3 class="heading" style="margin-bottom:24px;">Incoming Flow</h3><div id="pl-in-list"></div>`;
+    if(fullRender) mc.innerHTML = `<div class="incoming-shell"><h3 class="heading">Incoming Flow</h3><div id="pl-in-list"></div></div>`;
     document.getElementById('pl-in-list').innerHTML = incoming.length ? incoming.map(o=>buildOrderCard(o,'plant')).join('') : renderDashboardListState({
       icon: '🚛',
       title: 'No incoming flow',

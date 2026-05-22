@@ -68,6 +68,9 @@ window.addEventListener('offline', () => {
 });
 window.addEventListener('online', () => {
   window.showToast && window.showToast('✅ Back online! Syncing queued data...');
+  if (window.CloudSync?.isLive) {
+    window.CloudSync.flushOfflineQueue();
+  }
 });
 
 
@@ -92,6 +95,24 @@ const DB = {
         eventType: options.eventType || 'KPI_UPDATED',
         meta: options.meta || {}
       });
+    }
+    // Write-through to Appwrite — fire-and-forget, falls back to offline queue
+    if (!options.silent && !options.localOnly && val?.id) {
+      if (key.startsWith('ord:') && window.CloudSync) {
+        if (navigator.onLine && window.CloudSync.isLive) {
+          window.CloudSync.pushDocument(window.CloudSync.config?.ordersCollectionId, val)
+            .catch(() => window.CloudSync.queueOfflineWrite(key, val));
+        } else {
+          window.CloudSync.queueOfflineWrite(key, val);
+        }
+      } else if (key.startsWith('acc:') && window.CloudSync) {
+        if (navigator.onLine && window.CloudSync.isLive) {
+          window.CloudSync.pushAccount(val)
+            .catch(() => window.CloudSync.queueOfflineWrite(key, val));
+        } else {
+          window.CloudSync.queueOfflineWrite(key, val);
+        }
+      }
     }
     return true;
   } catch { return false; } },
@@ -1456,6 +1477,14 @@ function executeLogin(acc) {
   window.SESSION = SESSION;
   document.getElementById('login-screen').style.display = 'none';
   document.getElementById('app-shell').classList.add('active');
+
+  // Hydrate localStorage from Appwrite cloud on every login.
+  // This ensures data persists across device changes and browser wipes.
+  if (window.CloudSync?.isLive) {
+    window.CloudSync.hydrateFromCloud(acc.id).catch(err =>
+      console.warn('[Login] Cloud hydration failed, running on local data.', err)
+    );
+  }
   
   document.getElementById('tb-name').textContent = acc.name;
   document.getElementById('tb-role').textContent = `${acc.role.toUpperCase()} · ${acc.org}`;

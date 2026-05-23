@@ -82,6 +82,8 @@ function getAlertPreference() {
  * @returns {void}
  */
 function setAlertPreference(enabled) {
+  if (!SESSION || !SESSION.id) return;
+
   try {
     window.localStorage.setItem(
       STORAGE_KEY_PREFIX + 'smart-alerts:' + SESSION.id,

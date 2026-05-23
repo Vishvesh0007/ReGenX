@@ -6,8 +6,8 @@
  * @author GSSoC Contributor
  */
 
-const AUDIT_REGISTRY_KEY = 'audit-registry';
 const STORAGE_KEY_PREFIX = 'regenx-v3:';
+const AUDIT_REGISTRY_KEY = STORAGE_KEY_PREFIX + 'audit-registry';
 const TRUST_LEDGER_KEY = 'trust-ledger';
 
 /**

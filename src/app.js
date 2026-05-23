@@ -1591,7 +1591,7 @@ window.fetchWeather = async function(lat, lng) {
 }
 
 // ── STATE ──
-let SESSION = { role: null, name: '', org: '', uid: '', lat: null, lng: null };
+let SESSION = { role: null, name: '', org: '', id: '', lat: null, lng: null };
 window.SESSION = SESSION;
 let selectedRole = 'provider';
 let currentView = '';
@@ -2024,7 +2024,7 @@ window.doLogout = function() {
   if (pvChartInstance) { pvChartInstance.destroy(); pvChartInstance = null; }
   if (plChartInstance) { plChartInstance.destroy(); plChartInstance = null; }
   if (rMap) { rMap.remove(); rMap = null; }
-  SESSION = { role: null, name: '', org: '', uid: '', lat: null, lng: null };
+  SESSION = { role: null, name: '', org: '', id: '', lat: null, lng: null };
   window.SESSION = SESSION;
   window.currentView = '';
   ReGenXRealtime?.setSession(null);

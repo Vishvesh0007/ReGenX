@@ -24,7 +24,7 @@ const AUTOMATION_PIPELINE_KEY = STORAGE_KEY_PREFIX + "automation-pipeline";
 if ('serviceWorker' in navigator) {
   navigator.serviceWorker.register('service-worker.js')
     .then(reg => {
-      console.log('☁️ ReGenX SW v3 Registered');
+      console.info('☁️ ReGenX SW v3 Registered');
       window._swReg = reg;
 
       // Listen for Background Sync completion messages from SW

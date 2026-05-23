@@ -3362,30 +3362,33 @@ window.submitPvRequest = async function() {
   };
   saveOrder(o);
   addSlaEntry(o);
- await recordTrustEvent(o, 'assigned', 'rider', { lat: SESSION.lat, lng: SESSION.lng });
+ // INSIDE submitPvRequest
+  await recordTrustEvent(o, 'requested', 'provider', { lat: SESSION.lat, lng: SESSION.lng });
+  
+  // Notify local roles and publish an operational realtime event
   addWorkflowNotification({
-    title: 'Pickup Accepted',
-    body: `${SESSION.name} accepted the pickup for ${o.providerOrg}.`,
+    title: 'Dispatch Created',
+    body: `Your pickup request for ${kg}kg of ${type} has been sent to ${nearest.org}.`,
     role: 'provider',
-    type: 'pickup-assigned',
+    type: 'dispatch-created',
     priority: 'high',
     relatedId: o.id,
     url: '/'
   });
   addWorkflowNotification({
-    title: 'Job Assigned',
-    body: `You accepted pickup for ${o.providerOrg} (${o.kg}kg).`,
+    title: 'New Nearby Pickup Request',
+    body: `${SESSION.org} requested ${kg}kg of ${type}.`,
     role: 'rider',
-    type: 'pickup-assigned',
+    type: 'dispatch-created',
     priority: 'high',
     relatedId: o.id,
     url: '/'
   });
   addWorkflowNotification({
-    title: 'Incoming Shipment En Route',
-    body: `Rider ${SESSION.name} is heading to collect the waste.`,
+    title: 'Incoming Waste Shipment Alert',
+    body: `${kg}kg from ${SESSION.org} is routed to your plant.`,
     role: 'plant',
-    type: 'pickup-assigned',
+    type: 'dispatch-created',
     priority: 'normal',
     relatedId: o.id,
     url: '/'
@@ -3813,31 +3816,32 @@ window.riderAccept = async function(id) {
   o.status = 'assigned'; o.riderId = SESSION.id; o.riderName = SESSION.name;
   saveOrder(o);
   updateSlaEntry(o.id, { status: 'assigned' });
-await recordTrustEvent(o, 'requested', 'provider', { lat: SESSION.lat, lng: SESSION.lng });
-  // Notify local roles and publish an operational realtime event
+// INSIDE riderAccept
+  await recordTrustEvent(o, 'assigned', 'rider', { lat: SESSION.lat, lng: SESSION.lng });
+  
   addWorkflowNotification({
-    title: 'Dispatch Created',
-    body: `Your pickup request for ${kg}kg of ${type} has been sent to ${nearest.org}.`,
+    title: 'Pickup Accepted',
+    body: `${SESSION.name} accepted the pickup for ${o.providerOrg}.`,
     role: 'provider',
-    type: 'dispatch-created',
+    type: 'pickup-assigned',
     priority: 'high',
     relatedId: o.id,
     url: '/'
   });
   addWorkflowNotification({
-    title: 'New Nearby Pickup Request',
-    body: `${SESSION.org} requested ${kg}kg of ${type}.`,
+    title: 'Job Assigned',
+    body: `You accepted pickup for ${o.providerOrg} (${o.kg}kg).`,
     role: 'rider',
-    type: 'dispatch-created',
+    type: 'pickup-assigned',
     priority: 'high',
     relatedId: o.id,
     url: '/'
   });
   addWorkflowNotification({
-    title: 'Incoming Waste Shipment Alert',
-    body: `${kg}kg from ${SESSION.org} is routed to your plant.`,
+    title: 'Incoming Shipment En Route',
+    body: `Rider ${SESSION.name} is heading to collect the waste.`,
     role: 'plant',
-    type: 'dispatch-created',
+    type: 'pickup-assigned',
     priority: 'normal',
     relatedId: o.id,
     url: '/'

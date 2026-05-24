@@ -3,6 +3,7 @@
  * Implements client-side SHA-256 matching and verified environmental origin auditing.
  * Renders high-fidelity Glassmorphic validation cards and visual proof-of-custody timelines.
  * Supports searching live system orders, pre-seeded attestation hashes, client-side QR generation, and PDF card exporting.
+ * Phase 2 Upgrade: Optimized verification timelines and certified compliance badges.
  * @author GSSoC Contributor
  */
 

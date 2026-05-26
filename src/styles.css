@@ -262,7 +262,24 @@ h1, h2, h3, .heading { font-family: 'Space Grotesk', sans-serif; font-weight: 70
   transform: translateY(-1px);
 }
 
-.content-wrapper { padding: 32px; flex: 1; overflow-x: hidden; overflow-y: auto; width: 100%; max-width: 100%; box-sizing: border-box; }
+.content-wrapper {
+  padding: 32px;
+  flex: 1;
+  overflow-x: hidden;
+  overflow-y: auto;
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+  transition: opacity 0.15s ease-out, transform 0.15s ease-out;
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.content-wrapper.flicker-prevent {
+  opacity: 0;
+  transform: translateY(4px);
+  transition: opacity 0.1s ease-in, transform 0.1s ease-in;
+}
 .page-view { display: none; animation: fadeIn 0.3s ease; }
 .page-view.active { display: block; }
 @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }

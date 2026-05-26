@@ -2287,30 +2287,45 @@ function buildSidebar() {
 }
 
 window.showView = function(viewId) {
-  currentView = viewId;
-  window.currentView = currentView;
-  saveActiveSession(SESSION?.id, currentView);
-  document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
-  const btn = document.getElementById('nav-' + viewId);
-  if(btn) btn.classList.add('active');
-  
-  // Set Title
-  const titleMap = { 
-    'v-iot-bins': 'IoT Sensory Bins', 
-    'v-compliance': 'Compliance Center', 
-    'v-reconciliation': 'Reconciliation', 
-    'v-sla': 'SLA Monitor', 
-    'v-energy': 'Energy Scorecard', 
-    'v-sensor': 'Sensor Reliability', 
-    'v-emissions': 'Emissions Tracker', 
-    'v-quality': 'Quality Index',
-    'v-esg-hub': 'Sustainability Report Hub',
-    'v-automation': 'Automation Pipeline'
-  };
-  if(btn) document.getElementById('tb-view-title').textContent = titleMap[viewId] || btn.innerText.replace(/[^a-zA-Z\s]/g, '').trim();
-  
-  if (window.innerWidth <= 768) toggleSidebar(false);
-  refreshCurrentView(true);
+  const mc = document.getElementById('main-content');
+  if (mc) {
+    mc.classList.add('flicker-prevent');
+    setTimeout(() => {
+      currentView = viewId;
+      window.currentView = currentView;
+      saveActiveSession(SESSION?.id, currentView);
+      document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
+      const btn = document.getElementById('nav-' + viewId);
+      if(btn) btn.classList.add('active');
+      
+      // Set Title
+      const titleMap = { 
+        'v-iot-bins': 'IoT Sensory Bins', 
+        'v-compliance': 'Compliance Center', 
+        'v-reconciliation': 'Reconciliation', 
+        'v-sla': 'SLA Monitor', 
+        'v-energy': 'Energy Scorecard', 
+        'v-sensor': 'Sensor Reliability', 
+        'v-emissions': 'Emissions Tracker', 
+        'v-quality': 'Quality Index',
+        'v-esg-hub': 'Sustainability Report Hub',
+        'v-automation': 'Automation Pipeline'
+      };
+      if(btn) document.getElementById('tb-view-title').textContent = titleMap[viewId] || btn.innerText.replace(/[^a-zA-Z\s]/g, '').trim();
+      
+      if (window.innerWidth <= 768) toggleSidebar(false);
+      refreshCurrentView(true);
+      
+      requestAnimationFrame(() => {
+        mc.classList.remove('flicker-prevent');
+      });
+    }, 120);
+  } else {
+    currentView = viewId;
+    window.currentView = currentView;
+    saveActiveSession(SESSION?.id, currentView);
+    refreshCurrentView(true);
+  }
 }
 
 window.toggleSidebar = function(force) {

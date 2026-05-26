@@ -437,11 +437,24 @@ export const CloudSync = {
      */
     queueOfflineWrite: (key, data) => {
         try {
-            const queue = JSON.parse(localStorage.getItem('regenx-offline-queue') || '[]');
-            const filtered = queue.filter(item => item.key !== key);
-            filtered.push({ key, data, ts: Date.now() });
-            localStorage.setItem('regenx-offline-queue', JSON.stringify(filtered));
+            const sharedKey = STORAGE_KEY_PREFIX + 'offline-sync-queue';
+            const queue = JSON.parse(localStorage.getItem(sharedKey) || '[]');
+            const filtered = queue.filter(item => {
+                const itemKey = item.key || (item.type === 'sync-order' ? 'ord:' + item.payload?.id : '') || (item.type === 'sync-account' ? 'acc:' + item.payload?.id : '');
+                return itemKey !== key;
+            });
+            filtered.push({
+                id: key,
+                key: key,
+                type: key.startsWith('acc:') ? 'sync-account' : 'sync-order',
+                payload: data,
+                data: data,
+                ts: Date.now(),
+                timestamp: Date.now()
+            });
+            localStorage.setItem(sharedKey, JSON.stringify(filtered));
             console.log(`[CloudSync] Queued offline write for key: ${key}`);
+            if (window.updateOfflineQueueIndicator) window.updateOfflineQueueIndicator();
         } catch (e) {
             console.warn('[CloudSync] Failed to queue offline write:', e);
         }
@@ -455,22 +468,27 @@ export const CloudSync = {
     flushOfflineQueue: async () => {
         if (!CloudSync.isLive) return;
         try {
-            const queue = JSON.parse(localStorage.getItem('regenx-offline-queue') || '[]');
+            const sharedKey = STORAGE_KEY_PREFIX + 'offline-sync-queue';
+            const queue = JSON.parse(localStorage.getItem(sharedKey) || '[]');
             if (queue.length === 0) return;
             console.log(`[CloudSync] Flushing ${queue.length} offline queued writes...`);
             const failed = [];
             for (const item of queue) {
                 try {
-                    if (item.key.startsWith('ord:') && item.data?.id) {
-                        await CloudSync.pushDocument(CloudSync.config.ordersCollectionId, item.data);
-                    } else if (item.key.startsWith('acc:') && item.data?.id) {
-                        await CloudSync.pushAccount(item.data);
+                    const payload = item.payload || item.data;
+                    const key = item.key || (item.type === 'sync-order' ? 'ord:' + payload?.id : '') || (item.type === 'sync-account' ? 'acc:' + payload?.id : '');
+                    
+                    if (key.startsWith('ord:') && payload?.id) {
+                        await CloudSync.pushDocument(CloudSync.config.ordersCollectionId, payload);
+                    } else if (key.startsWith('acc:') && payload?.id) {
+                        await CloudSync.pushAccount(payload);
                     }
                 } catch (e) {
                     failed.push(item);
                 }
             }
-            localStorage.setItem('regenx-offline-queue', JSON.stringify(failed));
+            localStorage.setItem(sharedKey, JSON.stringify(failed));
+            if (window.updateOfflineQueueIndicator) window.updateOfflineQueueIndicator();
             if (failed.length === 0) {
                 window.showToast?.('✅ All offline data synced to cloud!');
             } else {

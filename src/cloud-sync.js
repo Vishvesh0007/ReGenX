@@ -262,9 +262,9 @@ export const CloudSync = {
 
     /**
      * Sanitizes an order object to match database attribute schemas.
-     * Ensures all values match correct types.
+     * Ensures all values match correct types and fallbacks default to empty strings.
      * @param {Object} doc - Raw order document.
-     * @returns {Object} Sanitized object ready for Appwrite.
+     * @returns {Object} Sanitized object mapped exactly to Appwrite attributes.
      */
     sanitizeDoc: (doc) => {
         const sanitized = {};

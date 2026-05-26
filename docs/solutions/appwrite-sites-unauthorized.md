@@ -34,7 +34,6 @@ Use a new or corrected Appwrite API key with `sites.read` and `sites.write`, the
 It avoids granting unrelated TablesDB permissions, honors the request to use MCP first, and keeps the existing deployment script as a narrow fallback only after MCP access is proven.
 
 ## Commands Run
-
 ```powershell
 uv --version
 python -m venv .venv

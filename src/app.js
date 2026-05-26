@@ -2352,7 +2352,7 @@ function renderLoadingSkeleton(lines = 2) {
     return `<div class="skeleton-loader" style="width:${width};"></div>`;
   }).join('');
   return `
-    <div class="dashboard-state dashboard-state-loading" aria-busy="true">
+    <div class="dashboard-state dashboard-state-loading fade-in" aria-busy="true">
       <div class="dashboard-state-head">
         <div class="dashboard-state-icon">⏳</div>
         ${renderStatusBadge('Loading', 'loading')}
@@ -2366,7 +2366,7 @@ function renderLoadingSkeleton(lines = 2) {
 
 function renderErrorState({ title = 'Operational error', description = 'Unable to load dashboard data.', subtext = 'Check the upstream system and refresh the view.', actionHtml = '' } = {}) {
   return `
-    <div class="dashboard-state dashboard-state-error">
+    <div class="dashboard-state dashboard-state-error fade-in">
       <div class="dashboard-state-head">
         <div class="dashboard-state-icon">⚠️</div>
         ${renderStatusBadge('Error', 'error')}
@@ -2381,7 +2381,7 @@ function renderErrorState({ title = 'Operational error', description = 'Unable t
 
 function renderEmptyStateCard({ icon = '◌', title = 'No data available', description = 'There is no operational data for this widget yet.', subtext = '', statusLabel = 'Idle', tone = 'inactive', actionHtml = '' } = {}) {
   return `
-    <div class="dashboard-state dashboard-state-empty">
+    <div class="dashboard-state dashboard-state-empty fade-in">
       <div class="dashboard-state-head">
         <div class="dashboard-state-icon">${icon}</div>
         ${renderStatusBadge(statusLabel, tone)}
@@ -2410,7 +2410,7 @@ function renderMetricCard({ title, value, description = '', status = 'active', i
   const trendTone = trendDirection === 'up' ? 'positive' : trendDirection === 'down' ? 'negative' : 'neutral';
   const trendArrow = trendDirection === 'up' ? '↗' : trendDirection === 'down' ? '↘' : '→';
   return `
-    <div class="stat-card dashboard-state dashboard-state-active state-${tone}"${style}>
+    <div class="stat-card dashboard-state dashboard-state-active state-${tone} fade-in"${style}>
       <div class="dashboard-state-head">
         <div class="dashboard-state-icon">${icon}</div>
         ${renderStatusBadge(statusLabel, tone)}
@@ -4292,7 +4292,7 @@ window.openIntegrityScan = function(orderId) {
       }).join('');
     } else {
       timeline = `
-        <div class="dashboard-state dashboard-state-empty">
+        <div class="dashboard-state dashboard-state-empty fade-in">
           <div class="dashboard-state-head">
             <div class="dashboard-state-icon">🧾</div>
             <span class="status-badge status-badge-inactive">IDLE</span>

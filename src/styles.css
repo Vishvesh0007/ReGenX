@@ -1601,6 +1601,27 @@ tr:hover td { background: var(--bg); }
 @media (max-width: 768px) {
   #app-shell { flex-direction: column; }
 
+  .btn {
+    min-height: 44px !important;
+    padding: 12px 24px !important;
+    font-size: 14px !important;
+  }
+  .tab-btn {
+    min-height: 44px !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+  }
+  .dashboard-state-actions,
+  .oc-actions,
+  .modal-actions {
+    display: flex !important;
+    flex-wrap: wrap !important;
+    gap: 10px !important;
+    width: 100% !important;
+    justify-content: flex-start !important;
+  }
+
   .sidebar {
     position: fixed;
     top: 0;
@@ -1805,6 +1826,26 @@ tr:hover td { background: var(--bg); }
 
   .oc-actions .btn {
     flex: 1 1 100%;
+  }
+
+  .dashboard-state-actions .btn,
+  .oc-actions .btn,
+  .modal-actions .btn {
+    width: 100% !important;
+    flex: 1 1 100% !important;
+    margin: 0 !important;
+  }
+  .role-grid {
+    grid-template-columns: 1fr !important;
+    gap: 8px !important;
+  }
+  .role-btn {
+    min-height: 52px !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    gap: 10px !important;
+    padding: 12px !important;
   }
 
   .order-stepper {

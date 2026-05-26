@@ -478,16 +478,32 @@ window.markAllNotificationsRead = function() {
 function queueOfflineAction(action) {
   if (!action || !action.type) return;
   const queue = loadOfflineQueue();
-  queue.push({ id: uid(), ts: ts(), ...action });
-  saveOfflineQueue(queue);
+  const key = action.type === 'sync-order' ? 'ord:' + action.payload?.id : (action.type === 'sync-account' ? 'acc:' + action.payload?.id : 'action:' + (action.id || uid()));
+  const filtered = queue.filter(item => {
+    const itemKey = item.key || (item.type === 'sync-order' ? 'ord:' + item.payload?.id : '') || (item.type === 'sync-account' ? 'acc:' + item.payload?.id : '');
+    return itemKey !== key;
+  });
+  filtered.push({
+    id: action.id || key,
+    key: key,
+    type: action.type,
+    payload: action.payload,
+    data: action.payload,
+    ts: Date.now(),
+    timestamp: Date.now(),
+    retryCount: action.retryCount || 0,
+    status: action.status || 'pending'
+  });
+  saveOfflineQueue(filtered);
   updateOfflineQueueIndicator();
 }
 
 async function processOfflineAction(action) {
   if (!action || !action.type) return;
+  const payload = action.payload || action.data;
   if (action.type === 'sync-order') {
     if (window.CloudSync && window.CloudSync.isLive && navigator.onLine) {
-      window.CloudSync.pushDocument('orders', action.payload);
+      await window.CloudSync.pushDocument(window.CloudSync.config?.ordersCollectionId || 'orders', payload);
     }
   }
   if (action.type === 'sync-notification') {
@@ -498,18 +514,32 @@ async function processOfflineAction(action) {
 async function flushOfflineQueue() {
   const queue = loadOfflineQueue();
   if (!queue.length) return;
-  for (const action of queue) {
-    await processOfflineAction(action);
+  
+  if (window.CloudSync && window.CloudSync.isLive && navigator.onLine) {
+    await window.CloudSync.flushOfflineQueue();
+  } else {
+    const failed = [];
+    for (const action of queue) {
+      try {
+        await processOfflineAction(action);
+      } catch (err) {
+        failed.push(action);
+      }
+    }
+    saveOfflineQueue(failed);
   }
-  saveOfflineQueue([]);
+  
   updateOfflineQueueIndicator();
-  addWorkflowNotification({
-    title: 'Offline Sync Completed',
-    body: `${queue.length} queued action${queue.length === 1 ? '' : 's'} were synced successfully.`,
-    role: SESSION.role || 'all',
-    type: 'sync',
-    priority: 'normal'
-  });
+  const remaining = loadOfflineQueue();
+  if (remaining.length === 0) {
+    addWorkflowNotification({
+      title: 'Offline Sync Completed',
+      body: 'All pending offline actions were synced successfully.',
+      role: SESSION.role || 'all',
+      type: 'sync',
+      priority: 'normal'
+    });
+  }
 }
 
 window.syncPendingActions = async function() {
